@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* Neutral palette, one accent. Status hues live in src/lib/status.ts. */
+:root {
+  --c-bg: #f6f6f7;
+  --c-panel: #ffffff;
+  --c-line: #e4e4e7;
+  --c-line-strong: #cfcfd4;
+  --c-fg: #18181b;
+  --c-fg-2: #52525b;
+  --c-muted: #8a8a93;
+  --c-accent: #2f6bf5;
+  --c-accent-fg: #ffffff;
+  --c-hover: #efeff1;
+  --c-warn: #d97706;
+  --c-danger: #dc2626;
+  --c-ok: #16a34a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg: #101012;
+    --c-panel: #18181b;
+    --c-line: #27272a;
+    --c-line-strong: #3f3f46;
+    --c-fg: #e7e7ea;
+    --c-fg-2: #a1a1aa;
+    --c-muted: #6f6f78;
+    --c-accent: #6d95ff;
+    --c-accent-fg: #0b1220;
+    --c-hover: #202024;
+    --c-warn: #f59e0b;
+    --c-danger: #f87171;
+    --c-ok: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-panel: var(--c-panel);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-2: var(--c-fg-2);
+  --color-muted: var(--c-muted);
+  --color-accent: var(--c-accent);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-hover: var(--c-hover);
+  --color-warn: var(--c-warn);
+  --color-danger: var(--c-danger);
+  --color-ok: var(--c-ok);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  @apply bg-bg text-fg font-sans antialiased;
+  font-size: 13px;
+  line-height: 1.35;
+  margin: 0;
+  overscroll-behavior-y: none;
+}
+#root {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1 h-7 px-2 rounded border border-line bg-panel text-fg text-[13px] leading-none whitespace-nowrap select-none;
+    @apply hover:bg-hover active:translate-y-px disabled:opacity-50 disabled:pointer-events-none;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
+  }
+  .btn-primary {
+    @apply bg-accent text-accent-fg border-accent hover:bg-accent hover:brightness-110;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent;
+  }
+  .btn-danger {
+    @apply text-danger border-danger/40 hover:bg-danger/10;
+  }
+  .input {
+    @apply h-7 px-2 rounded border border-line bg-panel text-fg text-[13px] leading-none w-full;
+    @apply placeholder:text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+  textarea.input {
+    @apply h-auto py-1.5 leading-[1.4];
+  }
+  select.input {
+    @apply pr-6 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%238a8a93' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-position: right 6px center;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 h-6 px-2 rounded-full border border-line bg-panel text-[12px] text-fg-2 leading-none whitespace-nowrap select-none cursor-pointer;
+    @apply hover:bg-hover;
+  }
+  .chip-on {
+    @apply border-accent text-fg bg-accent/10;
+  }
+  .label {
+    @apply block text-[11px] uppercase tracking-wide text-muted mb-1;
+  }
+  .kbd {
+    @apply font-mono text-[11px] px-1 rounded border border-line bg-hover text-fg-2;
+  }
+}
+
+/* Larger tap targets on iOS without changing the desktop density. */
+@media (pointer: coarse) {
+  .btn,
+  .input,
+  select.input {
+    min-height: 34px;
+  }
+  .input,
+  select.input {
+    font-size: 16px; /* prevents Safari zoom-on-focus */
+  }
+  select.input {
+    padding-left: 6px;
+    padding-right: 22px;
+  }
+}
