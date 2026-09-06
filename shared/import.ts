@@ -10,7 +10,7 @@ import {
   type ApplicationPatch,
   type BulkRequest,
   type Status,
-} from "../../shared/types";
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // 1. Lenient row schema. Only company + role are required. Everything else is

@@ -19,19 +19,19 @@ export function FilterBar({ filters, onChange, tags }: Props) {
   };
 
   return (
-    <div className="px-3 py-2 border-b border-line bg-bg flex flex-col gap-1.5">
+    <div className="px-3 sm:px-4 pb-2 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <input
           type="search"
-          className="input max-w-xs"
-          placeholder="Search company, role, notes"
+          className="input search max-w-xs"
+          placeholder="Search"
           value={filters.query}
           onChange={(e) => onChange({ ...filters, query: e.target.value })}
-          aria-label="Search"
+          aria-label="Search company, role, notes"
         />
         <button
           type="button"
-          className={`chip h-7 ${filters.attention ? "chip-on" : ""}`}
+          className={`chip h-8 ${filters.attention ? "chip-on" : ""}`}
           aria-pressed={filters.attention}
           onClick={() => onChange({ ...filters, attention: !filters.attention })}
         >
@@ -39,12 +39,12 @@ export function FilterBar({ filters, onChange, tags }: Props) {
           Needs attention
         </button>
         {isFiltering(filters) && (
-          <button type="button" className="btn btn-ghost text-muted h-6" onClick={() => onChange(EMPTY_FILTERS)}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(EMPTY_FILTERS)}>
             Clear
           </button>
         )}
       </div>
-      <div className="flex items-center gap-1 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+      <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none]">
         {STATUSES.map((s) => (
           <button
             key={s}
@@ -57,15 +57,9 @@ export function FilterBar({ filters, onChange, tags }: Props) {
             {STATUS_LABELS[s]}
           </button>
         ))}
-        {tags.length > 0 && <span className="w-px h-4 bg-line mx-1" aria-hidden />}
+        {tags.length > 0 && <span className="w-px h-4 bg-line-strong mx-1 shrink-0" aria-hidden />}
         {tags.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`chip ${filters.tags.has(t) ? "chip-on" : ""}`}
-            aria-pressed={filters.tags.has(t)}
-            onClick={() => toggleTag(t)}
-          >
+          <button key={t} type="button" className={`chip ${filters.tags.has(t) ? "chip-on" : ""}`} aria-pressed={filters.tags.has(t)} onClick={() => toggleTag(t)}>
             #{t}
           </button>
         ))}

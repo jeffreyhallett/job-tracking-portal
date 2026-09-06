@@ -14,6 +14,10 @@ import "./_env.js";
  * device; every request carries `Authorization: Bearer <token>`. Every valid
  * token maps to the same owner, DEFAULT_OWNER_ID.
  *
+ * Agents (a scheduled Claude task, a script) use AGENT_TOKEN instead, as the
+ * same bearer header or as `?token=` for clients that can't set headers.
+ * It grants exactly the same access as the password; keep it secret.
+ *
  * To move to real auth later (Clerk, Auth.js, ...): verify the session or
  * token from `req` here instead, return the user's stable id, and throw
  * HttpError(401) when there isn't one. Delete issueToken/api/auth.ts if the
@@ -21,8 +25,15 @@ import "./_env.js";
  */
 export function getOwnerId(req: VercelRequest): string {
   const header = req.headers.authorization ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-  if (!token || !safeEqual(token, expectedToken())) throw new HttpError(401, "Unauthorized");
+  const fromHeader = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+  const q = req.query.token;
+  const fromQuery = (Array.isArray(q) ? q[0] : q) ?? "";
+  const token = fromHeader || fromQuery;
+  if (!token) throw new HttpError(401, "Unauthorized");
+
+  const agentToken = process.env.AGENT_TOKEN;
+  const ok = safeEqual(token, expectedToken()) || (agentToken !== undefined && agentToken.length >= 16 && safeEqual(token, agentToken));
+  if (!ok) throw new HttpError(401, "Unauthorized");
   return process.env.DEFAULT_OWNER_ID || "default";
 }
 

@@ -4,8 +4,8 @@ import {
   statusFromEventLabel,
   type Application,
   type Status,
-} from "../../shared/types";
-import { daysBetween, parseDate } from "./dates";
+} from "./types.js";
+import { daysBetween, parseDate } from "./dates.js";
 
 export type Stats = {
   active: number;

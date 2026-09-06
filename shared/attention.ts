@@ -1,5 +1,5 @@
-import { IN_FLIGHT_STAGES, type Application } from "../../shared/types";
-import { daysBetween, daysSince, parseDate } from "./dates";
+import { IN_FLIGHT_STAGES, type Application } from "./types.js";
+import { daysBetween, daysSince, parseDate } from "./dates.js";
 
 export type AttentionReason =
   | { kind: "stale"; days: number }

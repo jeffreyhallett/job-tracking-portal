@@ -13,19 +13,26 @@ api/                 Vercel Functions (thin CRUD, no business logic)
   _db.ts             Neon pool + Drizzle client, one per invocation
   auth.ts            POST: password -> bearer token
   _http.ts           error wrapper, body parsing, row serialization
+  _apply.ts          the one-transaction merge used by bulk and agent import
   applications/
     index.ts         GET (list) / POST (create)
     [id].ts          PATCH (partial update) / DELETE
+    [id]/events.ts   POST: append one timeline event
     bulk.ts          POST: sync merge, single transaction
+  agent/             endpoints for a scheduled Claude task (docs/AGENT.md)
+    digest.ts        GET: needs attention, deadlines, next actions, activity, stats
+    context.ts       GET: compact skip-list
+    import.ts        POST: server-side version of the Sync merge
 db/schema.ts         Drizzle table definition (check constraint + indexes)
 drizzle/             generated SQL migration, checked in
 shared/types.ts      Status union + Application shape, imported by client and API
 shared/schemas.ts    Zod schemas the API validates request bodies with
+shared/import.ts     lenient parse, dedupe, diff plan (client preview + agent import)
+shared/attention.ts  the "needs attention" rules (header count + agent digest)
+shared/stats.ts      stats strip numbers, computed from the events timeline
 scripts/seed.ts      inserts three sample rows
+docs/AGENT.md        agent endpoints + a scheduled-task prompt
 src/                 the SPA
-  lib/attention.ts   the "needs attention" rules
-  lib/stats.ts       stats strip, computed from the events timeline
-  lib/import.ts      lenient parse, dedupe, diff plan, bulk request
   state/store.ts     useReducer store with optimistic writes + rollback
 ```
 
@@ -52,6 +59,7 @@ vercel env pull .env.local
 | --- | --- |
 | `DATABASE_URL` | Neon connection string. Injected by the Marketplace integration. Server-only; never exposed to the browser. |
 | `APP_PASSWORD` | Shared password the app asks for. Changing it signs every device out. |
+| `AGENT_TOKEN` | Optional. Bearer token for scheduled Claude tasks and scripts; same access as the password. See `docs/AGENT.md`. |
 | `DEFAULT_OWNER_ID` | Optional. The owner id every row is read and written with until per-user auth exists. Defaults to `default`. |
 | `API_PROXY_TARGET` | Optional. Where the Vite dev server proxies `/api` (default `http://localhost:3000`). |
 
@@ -110,6 +118,10 @@ The site is public, the data is not. The first visit asks for `APP_PASSWORD`; th
 Limits worth knowing: one password for everyone who uses the app, and a token that lives in the browser's storage on each device. That is fine for a personal tool behind a password; it is not per-user auth.
 
 If you can use it, Vercel's **Deployment Protection** (Settings → Deployment Protection) is an additional layer in front of the whole site, but it is not required.
+
+### Agent access
+
+A scheduled Claude task can read and update the tracker with `AGENT_TOKEN` instead of the password. `docs/AGENT.md` lists the endpoints (`/api/agent/digest`, `/api/agent/context`, `/api/agent/import`, the CRUD routes, and an append-event route) and includes a prompt to paste into the task.
 
 ## Adding auth later
 
