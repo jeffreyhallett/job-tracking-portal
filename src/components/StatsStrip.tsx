@@ -14,7 +14,7 @@ export function StatsStrip({ stats, weeks, shown, total }: { stats: Stats; weeks
   ];
   return (
     <div className="px-4 sm:px-6 pt-3 pb-2">
-      <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0 py-1.5 -my-1.5">
         {tiles.map((t) => (
           <div key={t.label} className="tile flex flex-col justify-center px-4 h-16 min-w-[128px] shrink-0">
             <div className="text-[22px] font-semibold tracking-[-0.03em] leading-6 tabular-nums">{t.value}</div>

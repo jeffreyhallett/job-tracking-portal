@@ -348,6 +348,10 @@ body::before {
   }
   .tile {
     @apply rounded-md;
+    box-shadow:
+      inset 0 1px 0 var(--c-glass-edge),
+      inset 0 0 0 0.5px var(--c-glass-edge-2),
+      0 1px 3px color-mix(in srgb, var(--c-glass-shadow) 50%, transparent);
   }
 
   /* ---- badges */
