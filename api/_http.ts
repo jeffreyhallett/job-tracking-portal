@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { ZodType } from "zod";
-import type { ApplicationRow } from "../db/schema";
-import type { Application, WorkModel } from "../shared/types";
-import { isStatus } from "../shared/types";
-import { HttpError } from "./_owner";
+import type { ApplicationRow } from "../db/schema.js";
+import type { Application, WorkModel } from "../shared/types.js";
+import { isStatus } from "../shared/types.js";
+import { HttpError } from "./_owner.js";
 
 /** Wraps a handler with uniform error handling. */
 export function route(

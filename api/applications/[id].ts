@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, eq } from "drizzle-orm";
-import { applications } from "../../db/schema";
-import { applicationPatchSchema } from "../../shared/schemas";
-import { openDb } from "../_db";
-import { paramId, parseBody, route, serialize } from "../_http";
-import { getOwnerId, HttpError } from "../_owner";
+import { applications } from "../../db/schema.js";
+import { applicationPatchSchema } from "../../shared/schemas.js";
+import { openDb } from "../_db.js";
+import { paramId, parseBody, route, serialize } from "../_http.js";
+import { getOwnerId, HttpError } from "../_owner.js";
 
 // PATCH  /api/applications/:id -> partial update
 // DELETE /api/applications/:id

@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, eq, sql } from "drizzle-orm";
-import { applications } from "../../db/schema";
-import { bulkRequestSchema } from "../../shared/schemas";
-import type { BulkResponse } from "../../shared/types";
-import { openDb } from "../_db";
-import { parseBody, route, serialize } from "../_http";
-import { getOwnerId, HttpError } from "../_owner";
+import { applications } from "../../db/schema.js";
+import { bulkRequestSchema } from "../../shared/schemas.js";
+import type { BulkResponse } from "../../shared/types.js";
+import { openDb } from "../_db.js";
+import { parseBody, route, serialize } from "../_http.js";
+import { getOwnerId, HttpError } from "../_owner.js";
 
 // POST /api/applications/bulk -> apply a sync merge in ONE transaction.
 // The client computes the merge (creates + per-row patches) and previews it;

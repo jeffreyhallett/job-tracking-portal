@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { STATUSES, WORK_MODELS } from "./types";
+import { STATUSES, WORK_MODELS } from "./types.js";
 
 // Strict schemas used by the API handlers to validate request bodies.
 // (The lenient import schema lives client-side in src/lib/import.ts.)
