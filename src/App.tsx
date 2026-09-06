@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Status } from "../shared/types";
+import { getToken, UNAUTHORIZED_EVENT } from "./auth";
 import { Board } from "./components/Board";
 import { Drawer } from "./components/Drawer";
 import { FilterBar } from "./components/FilterBar";
+import { PasswordGate } from "./components/PasswordGate";
 import { Header } from "./components/Header";
 import { StatsStrip } from "./components/StatsStrip";
 import { SyncModal } from "./components/SyncModal";
@@ -16,6 +18,17 @@ import { useMediaQuery } from "./lib/useMediaQuery";
 import { useApplications } from "./state/store";
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => getToken() !== null);
+  useEffect(() => {
+    const onUnauthorized = () => setAuthed(false);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+  if (!authed) return <PasswordGate onAuthed={() => setAuthed(true)} />;
+  return <Tracker />;
+}
+
+function Tracker() {
   const store = useApplications();
   const { apps, loaded, loadError, errors } = store.state;
 
@@ -74,7 +87,7 @@ export default function App() {
           <div className="p-4 text-[12px]">
             <div className="text-danger">Could not load applications: {loadError}</div>
             <div className="text-muted mt-1">
-              Is the API running? Locally that means <code className="kbd">vercel dev</code> alongside <code className="kbd">npm run dev</code>, with DATABASE_URL and DEFAULT_OWNER_ID set.
+              Is the API running? Locally that means <code className="kbd">vercel dev</code> alongside <code className="kbd">npm run dev</code>, with DATABASE_URL and APP_PASSWORD set.
             </div>
           </div>
         )}

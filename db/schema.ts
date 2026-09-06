@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { STATUSES, type ApplicationEvent } from "../shared/types";
+import { STATUSES, type ApplicationEvent } from "../shared/types.js";
 
 export const applications = pgTable(
   "applications",

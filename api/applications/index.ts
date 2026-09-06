@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { desc, eq } from "drizzle-orm";
-import { applications } from "../../db/schema";
-import { applicationInputSchema } from "../../shared/schemas";
-import { openDb } from "../_db";
-import { parseBody, route, serialize } from "../_http";
-import { getOwnerId, HttpError } from "../_owner";
+import { applications } from "../../db/schema.js";
+import { applicationInputSchema } from "../../shared/schemas.js";
+import { openDb } from "../_db.js";
+import { parseBody, route, serialize } from "../_http.js";
+import { getOwnerId, HttpError } from "../_owner.js";
 
 // GET  /api/applications  -> every row for the owner
 // POST /api/applications  -> create one

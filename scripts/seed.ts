@@ -16,9 +16,8 @@ for (const file of [".env.local", ".env"]) {
 }
 
 const url = process.env.DATABASE_URL;
-const ownerId = process.env.DEFAULT_OWNER_ID;
+const ownerId = process.env.DEFAULT_OWNER_ID || "default";
 if (!url) throw new Error("DATABASE_URL is not set");
-if (!ownerId) throw new Error("DEFAULT_OWNER_ID is not set");
 
 const sql = neon(url);
 

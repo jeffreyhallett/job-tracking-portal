@@ -1,4 +1,5 @@
 import type { Application, ApplicationInput, ApplicationPatch, BulkRequest, BulkResponse } from "../shared/types";
+import { getToken, setToken, signOut } from "./auth";
 
 export class ApiError extends Error {
   constructor(
@@ -11,14 +12,20 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
+  const token = getToken();
   try {
     res = await fetch(path, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
     });
   } catch {
     throw new ApiError(0, "Network error");
   }
+  if (res.status === 401 && path !== "/api/auth") signOut();
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     try {
@@ -31,6 +38,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+export async function login(password: string): Promise<void> {
+  const { token } = await request<{ token: string }>("/api/auth", { method: "POST", body: JSON.stringify({ password }) });
+  setToken(token);
 }
 
 export const api = {

@@ -1,6 +1,7 @@
+import "./_env.js";
 import { Pool, types } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
-import * as schema from "../db/schema";
+import * as schema from "../db/schema.js";
 
 // DATE columns come back as plain "YYYY-MM-DD" strings rather than JS Dates
 // (which would shift by timezone on the way to JSON).

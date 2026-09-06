@@ -8,8 +8,10 @@ Stack: React 19 + TypeScript on Vite, Tailwind 4, Zod, Vercel Functions in `/api
 
 ```
 api/                 Vercel Functions (thin CRUD, no business logic)
-  _owner.ts          getOwnerId(req): the one place auth will plug in
+  _owner.ts          getOwnerId(req): the one place auth lives (password today)
+  _env.ts            loads .env.local under `vercel dev`; no-op when deployed
   _db.ts             Neon pool + Drizzle client, one per invocation
+  auth.ts            POST: password -> bearer token
   _http.ts           error wrapper, body parsing, row serialization
   applications/
     index.ts         GET (list) / POST (create)
@@ -33,7 +35,7 @@ src/                 the SPA
 
 1. Create the Vercel project (import this repo, framework preset Vite).
 2. In the project, open **Storage → Create Database → Neon**, accept the defaults, and connect it to the project. This injects `DATABASE_URL` (and a few `PG*` / `POSTGRES_*` aliases) into every environment automatically.
-3. Under **Settings → Environment Variables**, add `DEFAULT_OWNER_ID` (any stable string, e.g. `jeffrey`). Every row is tagged with it; see "Adding auth later".
+3. Under **Settings → Environment Variables**, add `APP_PASSWORD` (the password the app asks for) for all three environments. Optionally add `DEFAULT_OWNER_ID`; see "Adding auth later".
 
 ### 2. Local environment
 
@@ -44,13 +46,16 @@ vercel link              # attach this folder to the Vercel project
 vercel env pull .env.local
 ```
 
-`.env.local` now holds `DATABASE_URL` and `DEFAULT_OWNER_ID`. It is git-ignored. `.env.example` lists the two variables if you would rather fill them by hand.
+`.env.local` now holds the project's *Development* variables. It is git-ignored. `.env.example` lists them if you would rather fill the file by hand.
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Neon connection string. Injected by the Marketplace integration. Server-only; never exposed to the browser. |
-| `DEFAULT_OWNER_ID` | The owner id every row is read and written with until real auth exists. |
+| `APP_PASSWORD` | Shared password the app asks for. Changing it signs every device out. |
+| `DEFAULT_OWNER_ID` | Optional. The owner id every row is read and written with until per-user auth exists. Defaults to `default`. |
 | `API_PROXY_TARGET` | Optional. Where the Vite dev server proxies `/api` (default `http://localhost:3000`). |
+
+Note on `vercel dev`: it does not read `.env.local` on its own. It uses the variables you assigned to the **Development** environment in the Vercel dashboard (pulled into `.vercel/`). A variable added only to Production is invisible locally. As a convenience the API also loads `.env.local` and `.env` itself when running outside a deployment (`api/_env.ts`), so either place works.
 
 ### 3. Migrate and seed
 
@@ -84,13 +89,17 @@ Push to the connected branch and Vercel builds it: `vite build` for the SPA, and
 
 After the first deploy, run the migration and seed against production once from your machine (`vercel env pull` gives you the production `DATABASE_URL` when you pick that environment).
 
-### Protect the deployment
+### Access control
 
-There is no login screen on purpose. Turn on **Vercel Authentication** under **Settings → Deployment Protection** so only members of your Vercel team (you) can open the site, including production. That is the access control until real auth is added.
+The site is public, the data is not. The first visit asks for `APP_PASSWORD`; the client exchanges it at `POST /api/auth` for a bearer token that is derived from the password (HMAC), stores the token in `localStorage`, and sends it on every API call. Every data handler goes through `getOwnerId(req)`, which rejects requests without a valid token with a 401, at which point the client drops the token and shows the password screen again. There is no session table: rotating `APP_PASSWORD` invalidates every device at once.
+
+Limits worth knowing: one password for everyone who uses the app, and a token that lives in the browser's storage on each device. That is fine for a personal tool behind a password; it is not per-user auth.
+
+If you can use it, Vercel's **Deployment Protection** (Settings → Deployment Protection) is an additional layer in front of the whole site, but it is not required.
 
 ## Adding auth later
 
-Every row carries `owner_id`, and every handler gets the current owner from `getOwnerId(req)` in `api/_owner.ts`, then scopes its query by it. Today that function returns `DEFAULT_OWNER_ID`. To add Clerk, Auth.js, or anything else: verify the session or token from `req` inside `getOwnerId`, return the user's stable id (or throw `HttpError(401)`), and leave the rest of `/api` untouched. Rows already in the table keep the old constant as their owner, so either set `DEFAULT_OWNER_ID` to your new user id or run a one-line `UPDATE applications SET owner_id = ...` after the switch.
+Every row carries `owner_id`, and every handler gets the current owner from `getOwnerId(req)` in `api/_owner.ts`, then scopes its query by it. Today that function checks the shared-password token and returns `DEFAULT_OWNER_ID`. To add Clerk, Auth.js, or anything else: verify the session or token from `req` inside `getOwnerId`, return the user's stable id (or throw `HttpError(401)`), delete `api/auth.ts` and the password gate on the client, and leave the rest of `/api` untouched. Rows already in the table keep the old constant as their owner, so either set `DEFAULT_OWNER_ID` to your new user id or run a one-line `UPDATE applications SET owner_id = ...` after the switch.
 
 ## How the pieces behave
 
