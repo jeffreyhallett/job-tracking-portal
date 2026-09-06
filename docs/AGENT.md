@@ -109,12 +109,13 @@ Auth: send header "Authorization: Bearer [AGENT_TOKEN]" on every request.
 
 1. GET /api/agent/digest
 2. Write me a short update, plain text, in this order and only if non-empty:
-   - Needs attention: one line each, "Company — Role: reason". Suggest the single most useful next step for each.
+   - Needs attention: one line each, "Company — Role: reason". Suggest the single most useful next step for each. If the item has contacts, name the person to write to and how long since lastContact.
    - Deadlines in the next 14 days.
    - Next actions due or overdue.
    - What moved in the last 7 days (recentActivity).
+   - Snoozed: one line, "Company (until date)" for each entry in snoozed. No suggestions for these; I muted them on purpose.
    - One line of stats: active, applied, response rate, median days to response.
-3. Do not change any data unless a step below says so.
+3. Do not change any data unless a step below says so. Never delete anything.
 [Optional, weekly] 4. GET /api/agent/context, then search for new-grad software engineering roles (US, 2027 start) at companies matching: [FILL IN]. Skip anything in the context list. Build a JSON array as described below and POST it to /api/agent/import with {"rows": [...], "dryRun": false}. Report counts.created and counts.updated. Each object: company, role, location, workModel (onsite|hybrid|remote), url, source, deadline (YYYY-MM-DD, omit if unknown), compensation (omit if not posted), tags (array of short strings), notes (one sentence). Omit any field you cannot verify from the posting; do not guess. Set status to "interested".
 ```
 
