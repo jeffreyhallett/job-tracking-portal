@@ -18,6 +18,9 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
         .from(applications)
         .where(eq(applications.ownerId, ownerId))
         .orderBy(desc(applications.updatedAt));
+      // Surfaced in the UI's empty state so an owner-id mismatch between
+      // environments is visible instead of looking like an empty database.
+      res.setHeader("X-Owner-Id", ownerId);
       res.status(200).json(rows.map(serialize));
       return;
     }

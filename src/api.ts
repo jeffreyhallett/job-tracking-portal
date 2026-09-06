@@ -11,6 +11,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await send<T>(path, init)).data;
+}
+
+async function send<T>(path: string, init?: RequestInit): Promise<{ res: Response; data: T }> {
   let res: Response;
   const token = getToken();
   try {
@@ -36,8 +40,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, message);
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  if (res.status === 204) return { res, data: undefined as T };
+  return { res, data: (await res.json()) as T };
 }
 
 export async function login(password: string): Promise<void> {
@@ -46,7 +50,10 @@ export async function login(password: string): Promise<void> {
 }
 
 export const api = {
-  list: () => request<Application[]>("/api/applications"),
+  list: async (): Promise<{ apps: Application[]; owner: string }> => {
+    const { res, data } = await send<Application[]>("/api/applications");
+    return { apps: data, owner: res.headers.get("x-owner-id") ?? "unknown" };
+  },
   create: (input: ApplicationInput) => request<Application>("/api/applications", { method: "POST", body: JSON.stringify(input) }),
   patch: (id: string, patch: ApplicationPatch) =>
     request<Application>(`/api/applications/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),

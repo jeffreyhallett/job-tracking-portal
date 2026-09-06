@@ -30,7 +30,7 @@ export default function App() {
 
 function Tracker() {
   const store = useApplications();
-  const { apps, loaded, loadError, errors } = store.state;
+  const { apps, owner, loaded, loadError, errors } = store.state;
 
   const [view, setView] = useState<ViewMode>(loadView);
   useEffect(() => saveView(view), [view]);
@@ -93,7 +93,10 @@ function Tracker() {
         )}
         {loaded && !loadError && apps.length === 0 && (
           <div className="p-6 text-center text-muted text-[12px]">
-            No applications yet. Add one with New, or paste Claude&apos;s JSON into Sync.
+            <div>No applications yet. Add one with New, or paste Claude&apos;s JSON into Sync.</div>
+            <div className="mt-1">
+              Reading as owner <code className="kbd">{owner ?? "unknown"}</code>. If you seeded under a different owner, set DEFAULT_OWNER_ID for this environment.
+            </div>
           </div>
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "board" && (
