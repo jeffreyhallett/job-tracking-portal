@@ -40,10 +40,25 @@ function safeJson(text: string): unknown {
   }
 }
 
+/**
+ * Parse the request URL with the WHATWG API. Vercel's `req.query` is a lazy
+ * getter backed by the deprecated `url.parse()`, which logs DEP0169 on every
+ * access under Node 24; nothing in /api reads `req.query` for that reason.
+ */
+export function requestUrl(req: VercelRequest): URL {
+  return new URL(req.url ?? "/", "http://localhost");
+}
+
+export function queryParam(req: VercelRequest, name: string): string | undefined {
+  return requestUrl(req).searchParams.get(name) ?? undefined;
+}
+
+/** The application id from `/api/applications/:id[/…]` (falls back to `?id=`). */
 export function paramId(req: VercelRequest): string {
-  const id = req.query.id;
-  const value = Array.isArray(id) ? id[0] : id;
-  if (!value || !/^[0-9a-f-]{36}$/i.test(value)) throw new HttpError(400, "Invalid id");
+  const url = requestUrl(req);
+  const fromPath = /\/api\/applications\/([0-9a-f-]{36})(?:\/|$)/i.exec(url.pathname)?.[1];
+  const value = fromPath ?? url.searchParams.get("id") ?? "";
+  if (!/^[0-9a-f-]{36}$/i.test(value)) throw new HttpError(400, "Invalid id");
   return value;
 }
 
