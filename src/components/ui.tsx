@@ -54,19 +54,19 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/35 p-0 sm:p-4"
-      style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/25 p-0 sm:p-4"
+      style={{ backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal
         aria-label={title}
-        className={`bg-bg rounded-t-lg sm:rounded-lg w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col overflow-hidden`}
+        className={`glass glass-strong rounded-t-lg sm:rounded-lg w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col overflow-hidden animate-[modal-in_220ms_cubic-bezier(0.2,0.8,0.2,1)]`}
         style={{ boxShadow: "var(--shadow-4)" }}
       >
-        <div className="flex items-center justify-between h-14 px-5 bg-panel border-b border-line shrink-0">
-          <h2 className="font-semibold text-[16px] tracking-[-0.02em]">{title}</h2>
+        <div className="flex items-center justify-between h-14 px-5 border-b border-line shrink-0">
+          <h2 className="font-bold text-[17px] tracking-[-0.025em]">{title}</h2>
           <button type="button" className="btn btn-ghost btn-icon w-8 h-8 text-muted" onClick={onClose} aria-label="Close">
             <Icon name="close" size={16} strokeWidth={2} />
           </button>

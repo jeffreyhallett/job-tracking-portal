@@ -148,7 +148,7 @@ function Tracker() {
       <StatsStrip stats={stats} weeks={weeks} shown={filtered.length} total={apps.length} />
       <FilterBar filters={filters} onChange={setFilters} tags={tags} searchRef={searchRef} />
 
-      <main className="flex-1 min-h-0 flex flex-col">
+      <main className={`flex-1 min-h-0 flex flex-col ${narrow ? "pb-24" : ""}`}>
         {!loaded && <div className="p-4 text-muted text-[12px]">Loading…</div>}
         {loaded && loadError && (
           <div className="p-4 text-[12px]">
@@ -178,18 +178,41 @@ function Tracker() {
         )}
       </main>
 
-      {narrow && !(selected || creating) && !syncOpen && (
-        <button
-          type="button"
-          className="fab"
-          aria-label="New application"
-          onClick={() => {
-            setSelectedId(null);
-            setCreating(true);
-          }}
-        >
-          <Icon name="plus" size={26} strokeWidth={2.2} />
-        </button>
+      {narrow && !(selected || creating) && !syncOpen && !helpOpen && (
+        <nav className="dock" aria-label="Quick actions">
+          <button type="button" className="dock-item" aria-pressed={filters.attention} onClick={() => setFilters((f) => ({ ...f, attention: !f.attention }))}>
+            <span className="relative">
+              <Icon name="clock" size={22} strokeWidth={1.9} />
+              {attentionCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-warn text-white text-[10px] font-semibold inline-flex items-center justify-center tabular-nums">{attentionCount}</span>
+              )}
+            </span>
+            Attention
+          </button>
+          <button type="button" className="dock-item" onClick={() => searchRef.current?.focus()}>
+            <Icon name="search" size={22} strokeWidth={1.9} />
+            Search
+          </button>
+          <button
+            type="button"
+            className="dock-primary"
+            aria-label="New application"
+            onClick={() => {
+              setSelectedId(null);
+              setCreating(true);
+            }}
+          >
+            <Icon name="plus" size={26} strokeWidth={2.4} />
+          </button>
+          <button type="button" className="dock-item" onClick={() => setSyncOpen(true)}>
+            <Icon name="sync" size={22} strokeWidth={1.9} />
+            Sync
+          </button>
+          <button type="button" className="dock-item" onClick={() => setHelpOpen(true)}>
+            <Icon name="keyboard" size={22} strokeWidth={1.9} />
+            Keys
+          </button>
+        </nav>
       )}
       {(selected || creating) && <Drawer app={creating ? null : selected} store={store} now={now} onClose={closeDrawer} />}
       {syncOpen && <SyncModal apps={apps} store={store} onClose={closeSync} />}

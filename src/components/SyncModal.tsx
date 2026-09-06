@@ -263,7 +263,7 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
 
       {error && <div className="text-[12px] text-danger border border-danger/40 rounded px-2 py-1">{error}</div>}
 
-      <div className="flex items-center gap-2 sticky bottom-0 bg-bg pt-2">
+      <div className="flex items-center gap-2 sticky bottom-0 pt-2 -mx-4 px-4 pb-1" style={{ background: "var(--c-glass-strong)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
         <button type="button" className="btn btn-primary" disabled={busy || total === 0} onClick={onApply}>
           {busy ? "Writing…" : `Apply ${total} change${total === 1 ? "" : "s"}`}
         </button>

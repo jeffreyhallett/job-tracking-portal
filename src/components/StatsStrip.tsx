@@ -12,7 +12,7 @@ export function StatsStrip({ stats, weeks, shown, total }: { stats: Stats; weeks
     { value: stats.medianDaysToResponse === null ? "—" : formatDays(stats.medianDaysToResponse), label: "Median to response" },
   ];
   return (
-    <div className="px-4 sm:px-6 pt-4 pb-2">
+    <div className="px-4 sm:px-6 pt-3 pb-2">
       <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0">
         {tiles.map((t) => (
           <div key={t.label} className="tile flex flex-col justify-center px-4 h-16 min-w-[128px] shrink-0">

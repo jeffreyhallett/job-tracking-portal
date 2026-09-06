@@ -42,7 +42,8 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
             <section
               key={status}
               aria-label={STATUS_LABELS[status]}
-              className={`lane flex flex-col w-[256px] h-full transition-[background-color,box-shadow] ${isOver ? "bg-accent-container/60 ring-2 ring-accent/50" : ""}`}
+              className={`lane flex flex-col w-[256px] h-full transition-[background-color,box-shadow] ${isOver ? "ring-2 ring-accent/60" : ""}`}
+              style={isOver ? { background: "var(--c-accent-container)" } : undefined}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";

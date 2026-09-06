@@ -1,16 +1,16 @@
 import type { Status } from "../../shared/types";
 
-/** One muted hue per status; used only for the dot / border, never fills. */
+/** iOS system palette; used only for dots, pills and lane markers, never fills. */
 export const STATUS_COLOR: Record<Status, string> = {
-  interested: "#a1a1aa",
-  applied: "#3b82f6",
-  oa: "#f59e0b",
-  phone_screen: "#a855f7",
-  onsite: "#06b6d4",
-  offer: "#22c55e",
-  rejected: "#ef4444",
-  ghosted: "#71717a",
-  withdrawn: "#52525b",
+  interested: "#8e8e93",
+  applied: "#007aff",
+  oa: "#ff9500",
+  phone_screen: "#af52de",
+  onsite: "#30b0c7",
+  offer: "#34c759",
+  rejected: "#ff3b30",
+  ghosted: "#636366",
+  withdrawn: "#5e5ce6",
 };
 
 export const STATUS_ORDER: Record<Status, number> = {

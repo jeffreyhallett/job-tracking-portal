@@ -1,85 +1,100 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ tokens
-   Tonal system: one canvas, white surfaces, a tinted container level, one
-   accent with a tonal container pair, and reserved warning/danger/ok pairs.
-   Status hues live in src/lib/status.ts. */
+   Liquid Glass: content sits on solid surfaces over a softly lit backdrop;
+   navigation and controls are translucent glass that refract what is
+   behind them. Status hues live in src/lib/status.ts (iOS system palette). */
 :root {
-  --c-bg: #f2f4f8;
-  --c-panel: #ffffff;
-  --c-surface-2: #eaedf4;
-  --c-surface-3: #dfe3ec;
-  --c-line: rgba(24, 28, 40, 0.09);
-  --c-line-strong: rgba(24, 28, 40, 0.18);
-  --c-fg: #191b22;
-  --c-fg-2: #4b4f5c;
-  --c-muted: #7a7e8b;
-  --c-accent: #2d5cf6;
-  --c-accent-strong: #1f47d1;
+  --c-bg: #f2f2f7;
+  --c-panel: rgba(255, 255, 255, 0.86);
+  --c-panel-solid: #ffffff;
+  --c-surface-2: rgba(120, 120, 128, 0.1);
+  --c-surface-3: rgba(120, 120, 128, 0.18);
+  --c-line: rgba(60, 60, 67, 0.12);
+  --c-line-strong: rgba(60, 60, 67, 0.24);
+  --c-fg: #1c1c1e;
+  --c-fg-2: rgba(60, 60, 67, 0.72);
+  --c-muted: rgba(60, 60, 67, 0.48);
+  --c-accent: #007aff;
+  --c-accent-strong: #0066d6;
   --c-accent-fg: #ffffff;
-  --c-accent-container: #dfe6ff;
-  --c-on-accent-container: #1a3ab0;
-  --c-hover: rgba(24, 28, 40, 0.05);
-  --c-hover-2: rgba(24, 28, 40, 0.09);
-  --c-warn: #8a4b00;
-  --c-warn-container: #ffedcf;
-  --c-danger: #b3261e;
-  --c-danger-container: #ffe2df;
-  --c-ok: #146c43;
-  --c-ok-container: #d6f2e2;
-  --c-inverse: #1e2028;
-  --c-inverse-fg: #f3f4f8;
-  --c-lane: rgba(24, 28, 40, 0.045);
-  --chart-1: #2d5cf6;
+  --c-accent-container: rgba(0, 122, 255, 0.14);
+  --c-on-accent-container: #0060c9;
+  --c-hover: rgba(60, 60, 67, 0.06);
+  --c-hover-2: rgba(60, 60, 67, 0.11);
+  --c-warn: #b25000;
+  --c-warn-container: rgba(255, 149, 0, 0.16);
+  --c-danger: #d70015;
+  --c-danger-container: rgba(255, 59, 48, 0.14);
+  --c-ok: #1b7f3b;
+  --c-ok-container: rgba(52, 199, 89, 0.16);
+  --c-inverse: rgba(28, 28, 30, 0.86);
+  --c-inverse-fg: #f2f2f7;
+  --c-lane: rgba(255, 255, 255, 0.42);
+  --c-glass: rgba(255, 255, 255, 0.55);
+  --c-glass-strong: rgba(255, 255, 255, 0.72);
+  --c-glass-edge: rgba(255, 255, 255, 0.85);
+  --c-glass-edge-2: rgba(255, 255, 255, 0.4);
+  --c-glass-shadow: rgba(20, 24, 40, 0.14);
+  --chart-1: #007aff;
   --chart-2: #b45309;
-  --shadow-1: 0 1px 2px rgba(20, 24, 40, 0.06), 0 0 0 1px rgba(20, 24, 40, 0.05);
-  --shadow-2: 0 6px 18px rgba(20, 24, 40, 0.1), 0 0 0 1px rgba(20, 24, 40, 0.05);
-  --shadow-3: 0 18px 50px rgba(20, 24, 40, 0.22), 0 0 0 1px rgba(20, 24, 40, 0.06);
-  --shadow-4: 0 28px 80px rgba(20, 24, 40, 0.32), 0 0 0 1px rgba(20, 24, 40, 0.06);
-  --shadow-fab: 0 8px 24px rgba(45, 92, 246, 0.38), 0 2px 6px rgba(20, 24, 40, 0.15);
-  --shadow-seg: 0 1px 3px rgba(20, 24, 40, 0.14), 0 0 0 0.5px rgba(20, 24, 40, 0.05);
+  --shadow-1: 0 1px 2px rgba(20, 24, 40, 0.05), 0 0 0 0.5px rgba(60, 60, 67, 0.12);
+  --shadow-2: 0 8px 24px rgba(20, 24, 40, 0.1), 0 0 0 0.5px rgba(60, 60, 67, 0.14);
+  --shadow-3: 0 24px 60px rgba(20, 24, 40, 0.22);
+  --shadow-4: 0 32px 90px rgba(20, 24, 40, 0.3);
+  --blob-1: rgba(120, 175, 255, 0.55);
+  --blob-2: rgba(255, 190, 150, 0.45);
+  --blob-3: rgba(190, 170, 255, 0.4);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --c-bg: #0f1015;
-    --c-panel: #1a1b21;
-    --c-surface-2: #22242c;
-    --c-surface-3: #2b2e38;
-    --c-line: rgba(255, 255, 255, 0.09);
-    --c-line-strong: rgba(255, 255, 255, 0.18);
-    --c-fg: #eceef4;
-    --c-fg-2: #b2b6c2;
-    --c-muted: #7c8090;
-    --c-accent: #8fb0ff;
-    --c-accent-strong: #a9c2ff;
-    --c-accent-fg: #0b1d5c;
-    --c-accent-container: #2a3c78;
-    --c-on-accent-container: #d8e1ff;
-    --c-hover: rgba(255, 255, 255, 0.06);
-    --c-hover-2: rgba(255, 255, 255, 0.11);
-    --c-warn: #ffc46b;
-    --c-warn-container: #3d2b08;
-    --c-danger: #ffb4ab;
-    --c-danger-container: #4a1c1a;
-    --c-ok: #7fdca4;
-    --c-ok-container: #123a26;
-    --c-inverse: #eceef4;
-    --c-inverse-fg: #191b22;
-    --c-lane: rgba(255, 255, 255, 0.055);
-    --chart-1: #8fb0ff;
+    --c-bg: #000000;
+    --c-panel: rgba(28, 28, 30, 0.86);
+    --c-panel-solid: #1c1c1e;
+    --c-surface-2: rgba(120, 120, 128, 0.2);
+    --c-surface-3: rgba(120, 120, 128, 0.3);
+    --c-line: rgba(84, 84, 88, 0.55);
+    --c-line-strong: rgba(84, 84, 88, 0.85);
+    --c-fg: #f2f2f7;
+    --c-fg-2: rgba(235, 235, 245, 0.68);
+    --c-muted: rgba(235, 235, 245, 0.42);
+    --c-accent: #0a84ff;
+    --c-accent-strong: #3b9cff;
+    --c-accent-fg: #ffffff;
+    --c-accent-container: rgba(10, 132, 255, 0.24);
+    --c-on-accent-container: #8fc2ff;
+    --c-hover: rgba(235, 235, 245, 0.07);
+    --c-hover-2: rgba(235, 235, 245, 0.12);
+    --c-warn: #ffb340;
+    --c-warn-container: rgba(255, 159, 10, 0.2);
+    --c-danger: #ff6961;
+    --c-danger-container: rgba(255, 69, 58, 0.2);
+    --c-ok: #4cd964;
+    --c-ok-container: rgba(48, 209, 88, 0.2);
+    --c-inverse: rgba(242, 242, 247, 0.9);
+    --c-inverse-fg: #1c1c1e;
+    --c-lane: rgba(255, 255, 255, 0.05);
+    --c-glass: rgba(40, 40, 46, 0.5);
+    --c-glass-strong: rgba(40, 40, 46, 0.72);
+    --c-glass-edge: rgba(255, 255, 255, 0.22);
+    --c-glass-edge-2: rgba(255, 255, 255, 0.08);
+    --c-glass-shadow: rgba(0, 0, 0, 0.5);
+    --chart-1: #0a84ff;
     --chart-2: #bd7d10;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
-    --shadow-2: 0 8px 22px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09);
-    --shadow-3: 0 18px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.09);
-    --shadow-4: 0 28px 80px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.09);
-    --shadow-fab: 0 8px 24px rgba(143, 176, 255, 0.28), 0 2px 6px rgba(0, 0, 0, 0.4);
-    --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+    --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+    --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.7);
+    --shadow-4: 0 32px 90px rgba(0, 0, 0, 0.8);
+    --blob-1: rgba(40, 90, 200, 0.35);
+    --blob-2: rgba(200, 90, 60, 0.22);
+    --blob-3: rgba(110, 70, 200, 0.3);
   }
 }
 
 @theme inline {
   --color-bg: var(--c-bg);
   --color-panel: var(--c-panel);
+  --color-panel-solid: var(--c-panel-solid);
   --color-surface-2: var(--c-surface-2);
   --color-surface-3: var(--c-surface-3);
   --color-line: var(--c-line);
@@ -103,10 +118,10 @@
   --color-inverse: var(--c-inverse);
   --color-inverse-fg: var(--c-inverse-fg);
   --color-lane: var(--c-lane);
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -118,9 +133,23 @@ body {
   @apply bg-bg text-fg font-sans antialiased;
   font-size: 13px;
   line-height: 1.4;
-  letter-spacing: -0.006em;
+  letter-spacing: -0.008em;
   margin: 0;
   overscroll-behavior-y: none;
+  position: relative;
+  z-index: 0;
+}
+/* The lit backdrop the glass refracts. Soft, desaturated, fixed. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 12% 8%, var(--blob-1), transparent 70%),
+    radial-gradient(45% 40% at 88% 18%, var(--blob-2), transparent 70%),
+    radial-gradient(60% 55% at 55% 100%, var(--blob-3), transparent 70%);
 }
 #root {
   height: 100dvh;
@@ -132,39 +161,107 @@ body {
 }
 
 @layer components {
-  /* ---- buttons: pill shaped. Filled (primary), tonal, outlined (default), text (ghost), icon. */
+  /* ---- the material. Applied via selector lists because Tailwind can't @apply
+     a component class. */
+  .glass,
+  .btn,
+  .chip,
+  .search,
+  .seg,
+  .tile,
+  .dock {
+    position: relative;
+    isolation: isolate;
+    background: var(--c-glass);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    backdrop-filter: blur(28px) saturate(190%);
+    box-shadow:
+      inset 0 1px 0 var(--c-glass-edge),
+      inset 0 0 0 0.5px var(--c-glass-edge-2),
+      0 10px 34px var(--c-glass-shadow);
+  }
+  .glass::before,
+  .btn::before,
+  .chip::before,
+  .seg::before,
+  .tile::before,
+  .dock::before {
+    /* specular highlight along the top-left edge */
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(120% 60% at 20% -10%, rgba(255, 255, 255, 0.45), transparent 60%);
+    opacity: 0.9;
+  }
+  .glass-strong {
+    background: var(--c-glass-strong);
+  }
+  /* small controls: same edge, lighter drop shadow */
+  .glass-flat,
+  .btn,
+  .chip,
+  .search,
+  .seg {
+    box-shadow:
+      inset 0 1px 0 var(--c-glass-edge),
+      inset 0 0 0 0.5px var(--c-glass-edge-2),
+      0 2px 8px color-mix(in srgb, var(--c-glass-shadow) 55%, transparent);
+  }
+
+  /* ---- buttons: capsules */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-panel text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
-    box-shadow: inset 0 0 0 1px var(--c-line-strong);
-    @apply hover:bg-hover active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
+    @apply active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
-    transition: background-color 150ms ease, transform 100ms ease, box-shadow 150ms ease, color 150ms ease;
+    transition: background-color 150ms ease, transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 150ms ease, color 150ms ease;
   }
-  .btn-primary {
-    @apply bg-accent text-accent-fg hover:bg-accent-strong;
-    box-shadow: 0 1px 2px rgba(20, 24, 40, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  .btn:hover {
+    background: var(--c-glass-strong);
   }
-  .btn-tonal {
-    @apply bg-accent-container text-on-accent-container;
-    box-shadow: none;
+  .btn-primary,
+  .btn-primary:hover {
+    @apply text-accent-fg;
+    background: color-mix(in srgb, var(--c-accent) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.25),
+      0 6px 18px color-mix(in srgb, var(--c-accent) 40%, transparent);
   }
+  .btn-tonal,
   .btn-tonal:hover {
-    background: color-mix(in srgb, var(--c-accent-container) 85%, var(--c-accent));
+    @apply text-accent;
+    background: color-mix(in srgb, var(--c-accent) 16%, var(--c-glass));
   }
   .btn-soft {
     @apply bg-surface-2 hover:bg-surface-3;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     box-shadow: none;
+  }
+  .btn-soft::before {
+    display: none;
   }
   .btn-ghost {
     @apply bg-transparent text-fg-2 hover:text-fg hover:bg-hover;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     box-shadow: none;
   }
-  .btn-danger {
-    @apply text-danger bg-danger-container;
-    box-shadow: none;
+  .btn-ghost::before {
+    display: none;
   }
+  .btn-danger,
   .btn-danger:hover {
-    background: color-mix(in srgb, var(--c-danger-container) 85%, var(--c-danger));
+    @apply text-danger bg-danger-container;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .btn-danger::before {
+    display: none;
   }
   .btn-sm {
     @apply h-8 px-3 text-[12px];
@@ -173,69 +270,87 @@ body {
     @apply w-9 h-9 px-0 rounded-full;
   }
 
-  /* ---- inputs */
+  /* ---- inputs: filled fields, iOS style */
   .input {
-    @apply h-9 px-3 rounded-sm bg-panel text-fg text-[13px] leading-none w-full;
-    box-shadow: inset 0 0 0 1px var(--c-line-strong);
+    @apply h-9 px-3 rounded-sm bg-surface-2 text-fg text-[13px] leading-none w-full;
+    box-shadow: none;
     @apply placeholder:text-muted focus:outline-none;
-    transition: box-shadow 150ms ease;
+    transition: box-shadow 150ms ease, background-color 150ms ease;
   }
   .input:focus {
-    box-shadow: inset 0 0 0 2px var(--c-accent);
+    background: var(--c-panel-solid);
+    box-shadow: 0 0 0 2px var(--c-accent);
   }
   textarea.input {
     @apply h-auto py-2 leading-[1.45];
   }
   select.input {
     @apply pr-8 appearance-none bg-no-repeat;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a7e8b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 10px center;
   }
   .search {
-    @apply rounded-full bg-surface-2 pl-9 h-10;
-    box-shadow: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a7e8b' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.5 3.5a7 7 0 1 1 0 14 7 7 0 0 1 0-14ZM15.5 15.5 20.5 20.5'/%3E%3C/svg%3E");
+    @apply rounded-full pl-10 h-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.5 3.5a7 7 0 1 1 0 14 7 7 0 0 1 0-14ZM15.5 15.5 20.5 20.5'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: 12px center;
+    background-position: 13px center;
+  }
+  .search::before {
+    display: none;
   }
   .search:focus {
-    @apply bg-panel;
-    box-shadow: inset 0 0 0 2px var(--c-accent);
+    background-color: var(--c-glass-strong);
+    box-shadow:
+      inset 0 1px 0 var(--c-glass-edge),
+      0 0 0 2px var(--c-accent);
   }
 
-  /* ---- chips: outlined at rest, tonal when selected */
+  /* ---- chips: glass capsules; selected = tinted glass */
   .chip {
-    @apply inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-panel text-[12px] font-medium text-fg-2 leading-none whitespace-nowrap select-none cursor-pointer;
-    box-shadow: inset 0 0 0 1px var(--c-line);
-    @apply hover:bg-hover hover:text-fg;
+    @apply inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-medium text-fg-2 leading-none whitespace-nowrap select-none cursor-pointer;
+    @apply hover:text-fg;
     transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+  .chip::before {
+    opacity: 0.6;
   }
   .chip-on,
   .chip-on:hover {
-    @apply bg-accent-container text-on-accent-container;
-    box-shadow: none;
+    @apply text-accent-fg;
+    background: color-mix(in srgb, var(--c-accent) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 4px 14px color-mix(in srgb, var(--c-accent) 35%, transparent);
   }
-  .chip-warn {
-    @apply bg-warn-container text-warn;
-    box-shadow: none;
+  .chip-warn,
+  .chip-warn:hover {
+    @apply text-warn;
+    background: color-mix(in srgb, #ff9500 22%, var(--c-glass));
   }
 
   /* ---- surfaces */
   .card {
-    @apply bg-panel rounded-md;
+    @apply rounded-md;
+    background: var(--c-panel);
     box-shadow: var(--shadow-1);
+  }
+  .card-hover {
+    transition: box-shadow 180ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .card-hover:hover {
     box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
   }
   .lane {
-    @apply bg-lane rounded-lg;
+    @apply rounded-lg;
+    background: var(--c-lane);
+    box-shadow: inset 0 0 0 0.5px var(--c-glass-edge-2);
   }
   .tile {
-    @apply bg-surface-2 rounded-md;
+    @apply rounded-md;
   }
 
-  /* ---- badges (tonal, with icon) */
+  /* ---- badges */
   .badge {
     @apply inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium leading-none whitespace-nowrap;
   }
@@ -254,14 +369,14 @@ body {
 
   /* ---- status pill; --sc is the status hue, set inline */
   .pill {
-    @apply inline-flex items-center h-6 sm:h-7 rounded-full px-2 sm:px-2.5 text-[11px] sm:text-[12px] font-medium leading-none whitespace-nowrap;
-    background: color-mix(in srgb, var(--sc) 16%, var(--c-panel));
-    color: color-mix(in srgb, var(--sc) 70%, var(--c-fg));
+    @apply inline-flex items-center h-6 sm:h-7 rounded-full px-2 sm:px-2.5 text-[11px] sm:text-[12px] font-semibold leading-none whitespace-nowrap;
+    background: color-mix(in srgb, var(--sc) 16%, transparent);
+    color: color-mix(in srgb, var(--sc) 78%, var(--c-fg));
   }
   select.pill {
     @apply pr-6 appearance-none cursor-pointer bg-no-repeat;
     box-shadow: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 8px center;
     transition: filter 150ms ease;
   }
@@ -272,55 +387,72 @@ body {
     @apply outline-none ring-2 ring-accent/40;
   }
 
-  /* ---- segmented button (Material style: outlined, selected segment tonal) */
+  /* ---- segmented control: glass track, lens-like selected segment */
   .seg {
-    @apply inline-flex items-center rounded-full bg-panel p-[3px] gap-[2px];
-    box-shadow: inset 0 0 0 1px var(--c-line-strong);
+    @apply inline-flex items-center rounded-full p-[3px] gap-[2px];
   }
   .seg-item {
-    @apply h-[30px] px-4 rounded-full text-[12px] font-medium text-fg-2 leading-none select-none inline-flex items-center gap-1.5;
-    transition: background-color 150ms ease, color 150ms ease;
+    @apply h-[30px] px-4 rounded-full text-[12px] font-medium text-fg-2 leading-none select-none inline-flex items-center gap-1.5 relative;
+    transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
   }
   .seg-item:hover {
-    @apply text-fg bg-hover;
+    @apply text-fg;
   }
   .seg-item[aria-selected="true"] {
-    @apply bg-accent-container text-on-accent-container;
+    @apply text-fg;
+    background: var(--c-panel-solid);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 2px 8px rgba(20, 24, 40, 0.14),
+      0 0 0 0.5px var(--c-line);
   }
 
   .label {
     @apply block text-[12px] font-medium text-fg-2 mb-1;
   }
   .section-title {
-    @apply flex items-center gap-1.5 text-[12px] font-semibold text-fg-2 mb-2.5;
+    @apply flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted mb-2.5;
   }
   .kbd {
     @apply font-mono text-[11px] px-1.5 py-0.5 rounded-[6px] bg-surface-2 text-fg-2;
-    box-shadow: inset 0 -1px 0 var(--c-line-strong);
   }
-  .fab {
-    @apply fixed right-4 z-30 w-14 h-14 rounded-2xl bg-accent text-accent-fg inline-flex items-center justify-center;
-    bottom: max(1rem, env(safe-area-inset-bottom));
-    box-shadow: var(--shadow-fab);
+  /* floating glass bottom bar on phones */
+  .dock {
+    @apply fixed left-4 right-4 z-30 h-[68px] rounded-full flex items-center justify-around px-2;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .dock-item {
+    @apply inline-flex flex-col items-center justify-center gap-0.5 h-14 min-w-14 px-2 rounded-full text-[10px] font-medium text-fg-2 leading-none select-none;
     @apply active:scale-95;
-    transition: transform 100ms ease;
+    transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), color 150ms ease;
+  }
+  .dock-item[aria-pressed="true"] {
+    @apply text-accent;
+  }
+  .dock-primary {
+    @apply w-14 h-14 rounded-full bg-accent text-accent-fg inline-flex items-center justify-center;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 6px 18px color-mix(in srgb, var(--c-accent) 45%, transparent);
+    @apply active:scale-95;
+    transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 @keyframes card-in {
   from {
     opacity: 0;
-    transform: translateY(2px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -330,11 +462,21 @@ body {
 @keyframes sheet-in {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateX(24px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -352,5 +494,12 @@ body {
   select.input {
     padding-left: 10px;
     padding-right: 26px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--c-panel-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }

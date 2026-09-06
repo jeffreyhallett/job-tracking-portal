@@ -39,7 +39,7 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
     <div className="flex-1 min-h-0 overflow-auto px-2 sm:px-6 pb-4">
       <div className="card overflow-hidden min-w-max sm:min-w-0 rounded-lg">
       <table className="w-full border-collapse text-[13px]">
-        <thead className="sticky top-0 bg-surface-2 z-10">
+        <thead className="sticky top-0 z-10" style={{ background: "var(--c-panel-solid)" }}>
           <tr className="text-left text-[12px] font-medium text-fg-2">
             {COLUMNS.map((c) => (
               <th key={c.key} className={`font-medium px-2 sm:px-3 h-10 border-b border-line whitespace-nowrap ${c.className ?? ""}`}>

@@ -45,7 +45,7 @@ type TextKey =
 export function Drawer({ app, store, now, onClose }: Props) {
   return (
     <aside
-      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[480px] z-30 bg-bg sm:rounded-lg flex flex-col overflow-hidden animate-[sheet-in_200ms_ease-out]"
+      className="glass glass-strong fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[480px] z-30 sm:rounded-lg flex flex-col overflow-hidden animate-[sheet-in_260ms_cubic-bezier(0.2,0.8,0.2,1)]"
       style={{ boxShadow: "var(--shadow-3)" }}
       aria-label={app ? `${app.company} details` : "New application"}
     >
@@ -57,14 +57,14 @@ export function Drawer({ app, store, now, onClose }: Props) {
 function Shell({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <div className="flex items-start gap-3 px-5 pt-5 pb-4 shrink-0 bg-panel border-b border-line">
+      <div className="flex items-start gap-3 px-5 pt-5 pb-4 shrink-0 border-b border-line">
         <div className="flex-1 min-w-0">{title}</div>
         <button type="button" className="btn btn-ghost btn-icon w-8 h-8 text-muted -mr-2 -mt-1" onClick={onClose} aria-label="Close">
           <Icon name="close" size={16} strokeWidth={2} />
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">{children}</div>
-      {footer && <div className="border-t border-line bg-panel px-4 py-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>}
+      {footer && <div className="border-t border-line px-4 py-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>}
     </>
   );
 }
@@ -281,7 +281,7 @@ function ContactsEditor({ contacts, onCommit }: { contacts: Contact[]; onCommit:
   return (
     <div className="flex flex-col gap-2">
       {draft.map((c, i) => (
-        <div key={i} className="rounded-sm bg-surface-2 p-2.5 grid grid-cols-2 gap-2">
+        <div key={i} className="rounded-sm bg-surface-2 p-2.5 grid grid-cols-2 gap-2 [&_.input]:bg-panel-solid">
           <input className="input" placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} onBlur={commit} aria-label="Contact name" />
           <input className="input" placeholder="Role (recruiter, referral…)" value={c.role ?? ""} onChange={(e) => set(i, { role: e.target.value })} onBlur={commit} aria-label="Contact role" />
           <input className="input" placeholder="Email" type="email" value={c.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} onBlur={commit} aria-label="Contact email" />
@@ -339,7 +339,7 @@ function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string;
   return (
     <div className="flex flex-col gap-2">
       {adding ? (
-        <div className="rounded-sm bg-surface-2 p-2.5 flex flex-col gap-2">
+        <div className="rounded-sm bg-surface-2 p-2.5 flex flex-col gap-2 [&_.input]:bg-panel-solid">
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <input className="input" placeholder="Phone screen with Sam: system design, 45 min" value={label} onChange={(e) => setLabel(e.target.value)} autoFocus aria-label="Entry" />
             <input className="input w-[140px]" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
