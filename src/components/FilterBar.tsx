@@ -20,12 +20,12 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-2 flex flex-col gap-2">
+    <div className="px-4 sm:px-6 pb-3 flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
         <input
           ref={searchRef}
           type="search"
-          className="input search max-w-xs"
+          className="input search max-w-sm"
           placeholder="Search"
           value={filters.query}
           onChange={(e) => onChange({ ...filters, query: e.target.value })}
@@ -33,11 +33,11 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
         />
         <button
           type="button"
-          className={`chip h-8 ${filters.attention ? "chip-on" : ""}`}
+          className={`chip h-10 ${filters.attention ? "chip-warn" : ""}`}
           aria-pressed={filters.attention}
           onClick={() => onChange({ ...filters, attention: !filters.attention })}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-warn" />
+          <span className="w-2 h-2 rounded-full bg-warn" />
           Needs attention
         </button>
         {isFiltering(filters) && (
@@ -46,7 +46,7 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
           </button>
         )}
       </div>
-      <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+      <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
         {STATUSES.map((s) => (
           <button
             key={s}

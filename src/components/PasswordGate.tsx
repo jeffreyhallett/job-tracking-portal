@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ApiError, login } from "../api";
+import { Icon } from "./Icon";
 
 export function PasswordGate({ onAuthed }: { onAuthed: () => void }) {
   const [password, setPassword] = useState("");
@@ -22,18 +23,22 @@ export function PasswordGate({ onAuthed }: { onAuthed: () => void }) {
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <form
-        className="card w-full max-w-[320px] p-6 flex flex-col gap-3"
+        className="card w-full max-w-[340px] p-7 flex flex-col gap-4 rounded-lg"
+        style={{ boxShadow: "var(--shadow-2)" }}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
+        <span className="w-11 h-11 rounded-[13px] bg-accent text-accent-fg inline-flex items-center justify-center" aria-hidden>
+          <Icon name="briefcase" size={22} strokeWidth={2} />
+        </span>
         <div>
-          <div className="font-semibold text-[17px] tracking-[-0.02em]">Applications</div>
-          <div className="text-[12px] text-fg-2 mt-0.5">Enter the password to continue.</div>
+          <div className="font-semibold text-[20px] tracking-[-0.025em]">Applications</div>
+          <div className="text-[13px] text-fg-2 mt-0.5">Enter the password to continue.</div>
         </div>
         <input
-          className="input"
+          className="input h-10"
           type="password"
           aria-label="Password"
           placeholder="Password"
@@ -42,10 +47,10 @@ export function PasswordGate({ onAuthed }: { onAuthed: () => void }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <button type="submit" className="btn btn-primary" disabled={!password || busy}>
+        <button type="submit" className="btn btn-primary h-10" disabled={!password || busy}>
           {busy ? "Checking…" : "Continue"}
         </button>
-        {error && <div className="text-[12px] text-danger">{error}</div>}
+        {error && <div className="badge badge-danger self-start">{error}</div>}
         <div className="text-[11px] text-muted">This device stays signed in until the password changes.</div>
       </form>
     </div>

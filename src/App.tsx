@@ -5,6 +5,7 @@ import { needsAttention } from "../shared/attention";
 import { contextForClaude } from "../shared/import";
 import { getToken, UNAUTHORIZED_EVENT } from "./auth";
 import { Board } from "./components/Board";
+import { Icon } from "./components/Icon";
 import { Drawer } from "./components/Drawer";
 import { FilterBar } from "./components/FilterBar";
 import { Header } from "./components/Header";
@@ -128,6 +129,8 @@ function Tracker() {
   return (
     <>
       <Header
+        total={apps.length}
+        active={stats.active}
         attentionCount={attentionCount}
         attentionOn={filters.attention}
         onToggleAttention={() => setFilters((f) => ({ ...f, attention: !f.attention }))}
@@ -156,9 +159,13 @@ function Tracker() {
           </div>
         )}
         {loaded && !loadError && apps.length === 0 && (
-          <div className="p-6 text-center text-muted text-[12px]">
-            <div>No applications yet. Add one with New, or paste Claude&apos;s JSON into Sync.</div>
-            <div className="mt-1">
+          <div className="mx-4 sm:mx-6 mb-4 tile p-8 text-center text-[13px] text-fg-2 flex flex-col items-center gap-2">
+            <span className="w-11 h-11 rounded-[13px] bg-accent-container text-on-accent-container inline-flex items-center justify-center">
+              <Icon name="briefcase" size={22} />
+            </span>
+            <div className="font-medium text-fg">No applications yet</div>
+            <div>Add one with New, or paste Claude&apos;s JSON into Sync.</div>
+            <div className="text-[12px] text-muted">
               Reading as owner <code className="kbd">{owner ?? "unknown"}</code>. If you seeded under a different owner, set DEFAULT_OWNER_ID for this environment.
             </div>
           </div>
@@ -171,6 +178,19 @@ function Tracker() {
         )}
       </main>
 
+      {narrow && !(selected || creating) && !syncOpen && (
+        <button
+          type="button"
+          className="fab"
+          aria-label="New application"
+          onClick={() => {
+            setSelectedId(null);
+            setCreating(true);
+          }}
+        >
+          <Icon name="plus" size={26} strokeWidth={2.2} />
+        </button>
+      )}
       {(selected || creating) && <Drawer app={creating ? null : selected} store={store} now={now} onClose={closeDrawer} />}
       {syncOpen && <SyncModal apps={apps} store={store} onClose={closeSync} />}
       {helpOpen && <ShortcutsHelp onClose={closeHelp} />}

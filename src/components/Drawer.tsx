@@ -17,7 +17,7 @@ import { formatDate, formatRelativeDays } from "../../shared/dates";
 import { STATUS_COLOR } from "../lib/status";
 import type { Store } from "../state/store";
 import { CompanyMark } from "./CompanyMark";
-import { Cross } from "./ui";
+import { Icon, type IconName } from "./Icon";
 
 type Props = {
   /** null = create mode */
@@ -45,7 +45,8 @@ type TextKey =
 export function Drawer({ app, store, now, onClose }: Props) {
   return (
     <aside
-      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[460px] z-30 bg-bg sm:rounded-lg sm:[box-shadow:var(--shadow-pop)] flex flex-col overflow-hidden"
+      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[480px] z-30 bg-bg sm:rounded-lg flex flex-col overflow-hidden animate-[sheet-in_200ms_ease-out]"
+      style={{ boxShadow: "var(--shadow-3)" }}
       aria-label={app ? `${app.company} details` : "New application"}
     >
       {app ? <EditForm key={app.id} app={app} store={store} now={now} onClose={onClose} /> : <CreateForm store={store} onClose={onClose} />}
@@ -56,10 +57,10 @@ export function Drawer({ app, store, now, onClose }: Props) {
 function Shell({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <div className="flex items-center gap-2 h-14 px-4 border-b border-line shrink-0 bg-panel">
-        <div className="font-semibold text-[14px] tracking-[-0.01em] truncate flex-1 min-w-0">{title}</div>
-        <button type="button" className="btn btn-ghost h-7 w-7 px-0 rounded-full text-muted" onClick={onClose} aria-label="Close">
-          <Cross />
+      <div className="flex items-start gap-3 px-5 pt-5 pb-4 shrink-0 bg-panel border-b border-line">
+        <div className="flex-1 min-w-0">{title}</div>
+        <button type="button" className="btn btn-ghost btn-icon w-8 h-8 text-muted -mr-2 -mt-1" onClick={onClose} aria-label="Close">
+          <Icon name="close" size={16} strokeWidth={2} />
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">{children}</div>
@@ -68,11 +69,14 @@ function Shell({ title, onClose, children, footer }: { title: ReactNode; onClose
   );
 }
 
-function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+function Section({ title, icon, children, aside }: { title: string; icon: IconName; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="card p-3">
+    <section className="card p-4">
       <div className="flex items-center justify-between">
-        <div className="section-title">{title}</div>
+        <div className="section-title">
+          <Icon name={icon} size={15} />
+          {title}
+        </div>
         {aside}
       </div>
       {children}
@@ -115,11 +119,22 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
   return (
     <Shell
       title={
-        <span className="flex items-center gap-2.5 min-w-0">
-          <CompanyMark company={app.company} url={app.url} size={30} />
+        <span className="flex items-center gap-3 min-w-0">
+          <CompanyMark company={app.company} url={app.url} size={44} />
           <span className="min-w-0">
-            <span className="block truncate">{app.company}</span>
-            <span className="block text-fg-2 font-normal text-[12px] truncate">{app.role}</span>
+            <span className="block truncate font-semibold text-[17px] tracking-[-0.02em] leading-tight">{app.company}</span>
+            <span className="block text-fg-2 text-[13px] truncate mt-0.5">{app.role}</span>
+            <span className="flex items-center gap-2 mt-1.5">
+              <span className="pill" style={{ ["--sc" as string]: STATUS_COLOR[app.status] }}>
+                {STATUS_LABELS[app.status]}
+              </span>
+              {app.url && (
+                <a href={app.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] text-accent font-medium">
+                  <Icon name="link" size={13} />
+                  Posting
+                </a>
+              )}
+            </span>
           </span>
         </span>
       }
@@ -134,15 +149,16 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               onClose();
             }}
           >
+            <Icon name="trash" size={15} />
             Delete
           </button>
           <span className="text-[11px] text-muted ml-auto">Changes save on blur</span>
         </>
       }
     >
-      {error && <div className="text-[12px] text-danger bg-danger/10 rounded-sm px-3 py-2">{error}</div>}
+      {error && <div className="badge badge-danger h-auto py-1.5 px-3 whitespace-normal">{error}</div>}
 
-      <Section title="Progress">
+      <Section title="Progress" icon="flag">
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           <label className="col-span-2">
             <span className="label">Status</span>
@@ -170,7 +186,10 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
           <div className="mt-3 flex items-center gap-2 flex-wrap text-[12px]">
             {snoozed ? (
               <>
-                <span className="text-muted">Snoozed until {formatDate(app.snoozedUntil)}</span>
+                <span className="badge badge-muted">
+                  <Icon name="moon" size={12} />
+                  Snoozed until {formatDate(app.snoozedUntil)}
+                </span>
                 {reasons.length > 0 && <span className="text-muted">({reasons.map(describeReason).join(", ")})</span>}
                 <button type="button" className="btn btn-soft btn-sm" onClick={() => store.snooze(app.id, 0)}>
                   Unsnooze
@@ -178,7 +197,10 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               </>
             ) : (
               <>
-                <span className="text-warn font-medium">{reasons.map(describeReason).join(" · ")}</span>
+                <span className="badge badge-warn">
+                  <Icon name="clock" size={12} strokeWidth={2} />
+                  {reasons.map(describeReason).join(" · ")}
+                </span>
                 <span className="text-muted ml-auto">Snooze</span>
                 {[
                   [3, "3d"],
@@ -195,7 +217,7 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
         )}
       </Section>
 
-      <Section title="Posting">
+      <Section title="Posting" icon="briefcase">
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           <Text label="Company" value={app.company} onCommit={(v) => commitText("company", v)} required />
           <Text label="Role" value={app.role} onCommit={(v) => commitText("role", v)} required />
@@ -211,31 +233,18 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               ))}
             </select>
           </label>
-          <Text
-            label="URL"
-            value={app.url}
-            onCommit={(v) => commitText("url", v)}
-            className="col-span-2"
-            type="url"
-            trailing={
-              app.url ? (
-                <a href={app.url} target="_blank" rel="noreferrer" className="text-accent text-[12px] font-normal">
-                  Open posting
-                </a>
-              ) : undefined
-            }
-          />
+          <Text label="URL" value={app.url} onCommit={(v) => commitText("url", v)} className="col-span-2" type="url" />
           <Text label="Source" value={app.source} onCommit={(v) => commitText("source", v)} placeholder="LinkedIn, referral, Simplify" />
           <Text label="Compensation" value={app.compensation} onCommit={(v) => commitText("compensation", v)} />
           <Text label="Tags" value={(app.tags ?? []).join(", ")} onCommit={commitTags} placeholder="comma separated" className="col-span-2" />
         </div>
       </Section>
 
-      <Section title="Contacts" aside={<span className="text-[11px] text-muted">{(app.contacts ?? []).length || ""}</span>}>
+      <Section title="Contacts" icon="people" aside={(app.contacts ?? []).length ? <span className="badge badge-muted tabular-nums">{(app.contacts ?? []).length}</span> : undefined}>
         <ContactsEditor contacts={app.contacts ?? []} onCommit={commitContacts} />
       </Section>
 
-      <Section title="Notes">
+      <Section title="Notes" icon="notes">
         <div className="grid grid-cols-2 gap-x-3 gap-y-3">
           <Text label="Referral" value={app.referral} onCommit={(v) => commitText("referral", v)} />
           <Text label="Resume version" value={app.resumeVersion} onCommit={(v) => commitText("resumeVersion", v)} placeholder="v3-backend" />
@@ -243,7 +252,7 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
         </div>
       </Section>
 
-      <Section title="Timeline">
+      <Section title="Timeline" icon="timeline">
         <Timeline app={app} onAdd={(e) => store.addEvent(app.id, e)} />
       </Section>
     </Shell>
@@ -272,7 +281,7 @@ function ContactsEditor({ contacts, onCommit }: { contacts: Contact[]; onCommit:
   return (
     <div className="flex flex-col gap-2">
       {draft.map((c, i) => (
-        <div key={i} className="rounded-sm bg-hover p-2 grid grid-cols-2 gap-2">
+        <div key={i} className="rounded-sm bg-surface-2 p-2.5 grid grid-cols-2 gap-2">
           <input className="input" placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} onBlur={commit} aria-label="Contact name" />
           <input className="input" placeholder="Role (recruiter, referral…)" value={c.role ?? ""} onChange={(e) => set(i, { role: e.target.value })} onBlur={commit} aria-label="Contact role" />
           <input className="input" placeholder="Email" type="email" value={c.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} onBlur={commit} aria-label="Contact email" />
@@ -330,7 +339,7 @@ function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string;
   return (
     <div className="flex flex-col gap-2">
       {adding ? (
-        <div className="rounded-sm bg-hover p-2 flex flex-col gap-2">
+        <div className="rounded-sm bg-surface-2 p-2.5 flex flex-col gap-2">
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <input className="input" placeholder="Phone screen with Sam: system design, 45 min" value={label} onChange={(e) => setLabel(e.target.value)} autoFocus aria-label="Entry" />
             <input className="input w-[140px]" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
@@ -417,7 +426,7 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
 
   return (
     <Shell
-      title="New application"
+      title={<span className="font-semibold text-[17px] tracking-[-0.02em]">New application</span>}
       onClose={onClose}
       footer={
         <>
@@ -432,7 +441,7 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
       }
     >
       <form
-        className="card p-3 grid grid-cols-2 gap-x-3 gap-y-3"
+        className="card p-4 grid grid-cols-2 gap-x-3 gap-y-3"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
