@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { attentionReasons, describeReason } from "../../shared/attention.js";
+import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention.js";
 import { daysBetween, parseDate } from "../../shared/dates.js";
 import { computeStats } from "../../shared/stats.js";
-import { CLOSED_STAGES, STATUSES, todayISO, type Application, type Status } from "../../shared/types.js";
+import { CLOSED_STAGES, STATUSES, todayISO, type Application, type Contact, type Status } from "../../shared/types.js";
 import { openDb } from "../_db.js";
 import { route } from "../_http.js";
 import { getOwnerId, HttpError } from "../_owner.js";
@@ -13,10 +13,12 @@ type Ref = { id: string; company: string; role: string; status: Status; url?: st
 export type Digest = {
   generatedAt: string;
   today: string;
-  counts: { total: number; active: number; needsAttention: number };
+  counts: { total: number; active: number; needsAttention: number; snoozed: number };
   pipeline: Record<Status, number>;
   stats: ReturnType<typeof computeStats>;
-  needsAttention: (Ref & { reasons: string[]; nextAction?: string; nextActionDate?: string; deadline?: string; updatedAt: string })[];
+  needsAttention: (Ref & { reasons: string[]; nextAction?: string; nextActionDate?: string; deadline?: string; updatedAt: string; contacts?: Contact[] })[];
+  /** Muted by the user until the given date; excluded from needsAttention. */
+  snoozed: (Ref & { snoozedUntil: string })[];
   upcomingDeadlines: (Ref & { deadline: string; daysUntil: number })[];
   nextActions: (Ref & { nextAction?: string; nextActionDate: string; daysUntil: number })[];
   recentActivity: (Ref & { date: string; label: string })[];
@@ -43,7 +45,10 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
       ...(a.nextActionDate ? { nextActionDate: a.nextActionDate } : {}),
       ...(a.deadline ? { deadline: a.deadline } : {}),
       updatedAt: a.updatedAt,
+      ...(a.contacts && a.contacts.length ? { contacts: a.contacts } : {}),
     }));
+
+  const snoozed = apps.filter((a) => isSnoozed(a, now) && a.snoozedUntil).map((a) => ({ ...ref(a), snoozedUntil: a.snoozedUntil ?? "" }));
 
   const upcomingDeadlines = apps
     .flatMap((a) => {
@@ -77,10 +82,11 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
   return {
     generatedAt: now.toISOString(),
     today,
-    counts: { total: apps.length, active: apps.filter((a) => !CLOSED_STAGES.includes(a.status)).length, needsAttention: needsAttention.length },
+    counts: { total: apps.length, active: apps.filter((a) => !CLOSED_STAGES.includes(a.status)).length, needsAttention: needsAttention.length, snoozed: snoozed.length },
     pipeline,
     stats: computeStats(apps),
     needsAttention,
+    snoozed,
     upcomingDeadlines,
     nextActions,
     recentActivity,

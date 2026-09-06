@@ -57,6 +57,6 @@ export const api = {
   create: (input: ApplicationInput) => request<Application>("/api/applications", { method: "POST", body: JSON.stringify(input) }),
   patch: (id: string, patch: ApplicationPatch) =>
     request<Application>(`/api/applications/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  remove: (id: string) => request<void>(`/api/applications/${id}`, { method: "DELETE" }),
+  remove: (id: string, keepalive = false) => request<void>(`/api/applications/${id}`, { method: "DELETE", keepalive }),
   bulk: (body: BulkRequest) => request<BulkResponse>("/api/applications/bulk", { method: "POST", body: JSON.stringify(body) }),
 };

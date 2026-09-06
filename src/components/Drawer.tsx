@@ -8,13 +8,16 @@ import {
   type Application,
   type ApplicationInput,
   type ApplicationPatch,
+  type Contact,
   type Status,
   type WorkModel,
 } from "../../shared/types";
-import { attentionReasons, describeReason } from "../../shared/attention";
-import { formatDate } from "../../shared/dates";
+import { describeReason, isSnoozed, rawAttentionReasons } from "../../shared/attention";
+import { formatDate, formatRelativeDays } from "../../shared/dates";
+import { STATUS_COLOR } from "../lib/status";
 import type { Store } from "../state/store";
-import { Cross, StatusDot } from "./ui";
+import { CompanyMark } from "./CompanyMark";
+import { Cross } from "./ui";
 
 type Props = {
   /** null = create mode */
@@ -40,17 +43,9 @@ type TextKey =
   | "nextActionDate";
 
 export function Drawer({ app, store, now, onClose }: Props) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
     <aside
-      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[440px] z-30 bg-panel sm:rounded-lg sm:[box-shadow:var(--shadow-pop)] flex flex-col"
+      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[460px] z-30 bg-bg sm:rounded-lg sm:[box-shadow:var(--shadow-pop)] flex flex-col overflow-hidden"
       aria-label={app ? `${app.company} details` : "New application"}
     >
       {app ? <EditForm key={app.id} app={app} store={store} now={now} onClose={onClose} /> : <CreateForm store={store} onClose={onClose} />}
@@ -61,22 +56,35 @@ export function Drawer({ app, store, now, onClose }: Props) {
 function Shell({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <div className="flex items-center gap-2 h-12 px-4 border-b border-line shrink-0">
+      <div className="flex items-center gap-2 h-14 px-4 border-b border-line shrink-0 bg-panel">
         <div className="font-semibold text-[14px] tracking-[-0.01em] truncate flex-1 min-w-0">{title}</div>
         <button type="button" className="btn btn-ghost h-7 w-7 px-0 rounded-full text-muted" onClick={onClose} aria-label="Close">
           <Cross />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">{children}</div>
-      {footer && <div className="border-t border-line px-4 py-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">{children}</div>
+      {footer && <div className="border-t border-line bg-panel px-4 py-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>}
     </>
+  );
+}
+
+function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <section className="card p-3">
+      <div className="flex items-center justify-between">
+        <div className="section-title">{title}</div>
+        {aside}
+      </div>
+      {children}
+    </section>
   );
 }
 
 // ------------------------------------------------------------------ edit
 
 function EditForm({ app, store, now, onClose }: { app: Application; store: Store; now: Date; onClose: () => void }) {
-  const reasons = attentionReasons(app, now);
+  const reasons = rawAttentionReasons(app, now);
+  const snoozed = isSnoozed(app, now);
   const error = store.state.errors[app.id];
 
   const commitText = (key: TextKey, raw: string) => {
@@ -99,16 +107,20 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
     if ((value ?? undefined) === app.workModel) return;
     store.update(app.id, { workModel: value });
   };
-
-  const events = [...app.events].sort((a, b) => b.date.localeCompare(a.date));
+  const commitContacts = (contacts: Contact[]) => {
+    if (JSON.stringify(contacts) === JSON.stringify(app.contacts ?? [])) return;
+    store.update(app.id, { contacts });
+  };
 
   return (
     <Shell
       title={
-        <span className="flex items-center gap-2 min-w-0">
-          <StatusDot status={app.status} />
-          <span className="truncate">{app.company}</span>
-          <span className="text-fg-2 font-normal truncate">{app.role}</span>
+        <span className="flex items-center gap-2.5 min-w-0">
+          <CompanyMark company={app.company} url={app.url} size={30} />
+          <span className="min-w-0">
+            <span className="block truncate">{app.company}</span>
+            <span className="block text-fg-2 font-normal text-[12px] truncate">{app.role}</span>
+          </span>
         </span>
       }
       onClose={onClose}
@@ -118,10 +130,8 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
             type="button"
             className="btn btn-danger"
             onClick={() => {
-              if (window.confirm(`Delete ${app.company} — ${app.role}?`)) {
-                store.remove(app.id);
-                onClose();
-              }
+              store.remove(app.id);
+              onClose();
             }}
           >
             Delete
@@ -130,63 +140,234 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
         </>
       }
     >
-      {error && <div className="text-[12px] text-danger border border-danger/40 rounded px-2 py-1">{error}</div>}
-      {reasons.length > 0 && <div className="text-[12px] text-warn">{reasons.map(describeReason).join(" · ")}</div>}
+      {error && <div className="text-[12px] text-danger bg-danger/10 rounded-sm px-3 py-2">{error}</div>}
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
-        <label className="col-span-2">
-          <span className="label">Status</span>
-          <select className="input" value={app.status} onChange={(e) => store.setStatus(app.id, e.target.value as Status)}>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Text label="Company" value={app.company} onCommit={(v) => commitText("company", v)} required />
-        <Text label="Role" value={app.role} onCommit={(v) => commitText("role", v)} required />
-        <Text label="Location" value={app.location} onCommit={(v) => commitText("location", v)} placeholder="New York, NY" />
-        <label>
-          <span className="label">Work model</span>
-          <select className="input" value={app.workModel ?? ""} onChange={(e) => commitWorkModel(e.target.value)}>
-            <option value="">—</option>
-            {WORK_MODELS.map((w) => (
-              <option key={w} value={w}>
-                {w}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Text label="URL" value={app.url} onCommit={(v) => commitText("url", v)} className="col-span-2" type="url" trailing={app.url ? <a href={app.url} target="_blank" rel="noreferrer" className="text-accent text-[12px] normal-case tracking-normal">open</a> : undefined} />
-        <Text label="Source" value={app.source} onCommit={(v) => commitText("source", v)} placeholder="LinkedIn, referral, Simplify" />
-        <Text label="Tags" value={(app.tags ?? []).join(", ")} onCommit={commitTags} placeholder="comma separated" />
-        <Text label="Applied" value={app.appliedDate} onCommit={(v) => commitText("appliedDate", v)} type="date" />
-        <Text label="Deadline" value={app.deadline} onCommit={(v) => commitText("deadline", v)} type="date" />
-        <Text label="Next action" value={app.nextAction} onCommit={(v) => commitText("nextAction", v)} placeholder="Follow up with recruiter" />
-        <Text label="Next action date" value={app.nextActionDate} onCommit={(v) => commitText("nextActionDate", v)} type="date" />
-        <Text label="Compensation" value={app.compensation} onCommit={(v) => commitText("compensation", v)} />
-        <Text label="Referral" value={app.referral} onCommit={(v) => commitText("referral", v)} />
-        <Text label="Resume version" value={app.resumeVersion} onCommit={(v) => commitText("resumeVersion", v)} placeholder="v3-backend" />
-        <Text label="Notes" value={app.notes} onCommit={(v) => commitText("notes", v)} className="col-span-2" multiline />
-      </div>
+      <Section title="Progress">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+          <label className="col-span-2">
+            <span className="label">Status</span>
+            <div className="flex items-center gap-2">
+              <select
+                className="pill flex-1 h-8 text-[13px]"
+                style={{ ["--sc" as string]: STATUS_COLOR[app.status] }}
+                value={app.status}
+                onChange={(e) => store.setStatus(app.id, e.target.value as Status)}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+          <Text label="Next action" value={app.nextAction} onCommit={(v) => commitText("nextAction", v)} placeholder="Follow up with recruiter" />
+          <Text label="Next action date" value={app.nextActionDate} onCommit={(v) => commitText("nextActionDate", v)} type="date" />
+          <Text label="Applied on" value={app.appliedDate} onCommit={(v) => commitText("appliedDate", v)} type="date" />
+          <Text label="Deadline" value={app.deadline} onCommit={(v) => commitText("deadline", v)} type="date" />
+        </div>
+        {(reasons.length > 0 || snoozed) && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap text-[12px]">
+            {snoozed ? (
+              <>
+                <span className="text-muted">Snoozed until {formatDate(app.snoozedUntil)}</span>
+                {reasons.length > 0 && <span className="text-muted">({reasons.map(describeReason).join(", ")})</span>}
+                <button type="button" className="btn btn-soft btn-sm" onClick={() => store.snooze(app.id, 0)}>
+                  Unsnooze
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-warn font-medium">{reasons.map(describeReason).join(" · ")}</span>
+                <span className="text-muted ml-auto">Snooze</span>
+                {[
+                  [3, "3d"],
+                  [7, "1w"],
+                  [14, "2w"],
+                ].map(([days, label]) => (
+                  <button key={label} type="button" className="btn btn-soft btn-sm" onClick={() => store.snooze(app.id, Number(days))}>
+                    {label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </Section>
 
-      <section>
-        <div className="label">Timeline</div>
-        <ol className="flex flex-col gap-1 text-[12px] card p-3">
-          {events.map((e, i) => (
-            <li key={`${e.date}-${i}`} className="flex gap-2">
-              <span className="text-muted tabular-nums w-14 shrink-0">{formatDate(e.date)}</span>
-              <span className="text-fg-2">{e.label}</span>
-            </li>
-          ))}
-          <li className="flex gap-2 text-muted">
-            <span className="tabular-nums w-14 shrink-0">{formatDate(app.createdAt.slice(0, 10))}</span>
-            <span>Created</span>
-          </li>
-        </ol>
-      </section>
+      <Section title="Posting">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+          <Text label="Company" value={app.company} onCommit={(v) => commitText("company", v)} required />
+          <Text label="Role" value={app.role} onCommit={(v) => commitText("role", v)} required />
+          <Text label="Location" value={app.location} onCommit={(v) => commitText("location", v)} placeholder="New York, NY" />
+          <label>
+            <span className="label">Work model</span>
+            <select className="input" value={app.workModel ?? ""} onChange={(e) => commitWorkModel(e.target.value)}>
+              <option value="">—</option>
+              {WORK_MODELS.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Text
+            label="URL"
+            value={app.url}
+            onCommit={(v) => commitText("url", v)}
+            className="col-span-2"
+            type="url"
+            trailing={
+              app.url ? (
+                <a href={app.url} target="_blank" rel="noreferrer" className="text-accent text-[12px] font-normal">
+                  Open posting
+                </a>
+              ) : undefined
+            }
+          />
+          <Text label="Source" value={app.source} onCommit={(v) => commitText("source", v)} placeholder="LinkedIn, referral, Simplify" />
+          <Text label="Compensation" value={app.compensation} onCommit={(v) => commitText("compensation", v)} />
+          <Text label="Tags" value={(app.tags ?? []).join(", ")} onCommit={commitTags} placeholder="comma separated" className="col-span-2" />
+        </div>
+      </Section>
+
+      <Section title="Contacts" aside={<span className="text-[11px] text-muted">{(app.contacts ?? []).length || ""}</span>}>
+        <ContactsEditor contacts={app.contacts ?? []} onCommit={commitContacts} />
+      </Section>
+
+      <Section title="Notes">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+          <Text label="Referral" value={app.referral} onCommit={(v) => commitText("referral", v)} />
+          <Text label="Resume version" value={app.resumeVersion} onCommit={(v) => commitText("resumeVersion", v)} placeholder="v3-backend" />
+          <Text label="Notes" value={app.notes} onCommit={(v) => commitText("notes", v)} className="col-span-2" multiline />
+        </div>
+      </Section>
+
+      <Section title="Timeline">
+        <Timeline app={app} onAdd={(e) => store.addEvent(app.id, e)} />
+      </Section>
     </Shell>
+  );
+}
+
+// ------------------------------------------------------------ contacts
+
+function ContactsEditor({ contacts, onCommit }: { contacts: Contact[]; onCommit: (c: Contact[]) => void }) {
+  const [draft, setDraft] = useState<Contact[]>(contacts);
+  useEffect(() => setDraft(contacts), [contacts]);
+
+  const set = (i: number, patch: Partial<Contact>) => setDraft((d) => d.map((c, j) => (j === i ? clean({ ...c, ...patch }) : c)));
+  const commit = () => onCommit(draft.filter((c) => c.name.trim() !== "").map(clean));
+  const remove = (i: number) => {
+    const next = draft.filter((_, j) => j !== i);
+    setDraft(next);
+    onCommit(next.filter((c) => c.name.trim() !== ""));
+  };
+  const touch = (i: number) => {
+    const next = draft.map((c, j) => (j === i ? { ...c, lastContact: todayISO() } : c));
+    setDraft(next);
+    onCommit(next.filter((c) => c.name.trim() !== ""));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {draft.map((c, i) => (
+        <div key={i} className="rounded-sm bg-hover p-2 grid grid-cols-2 gap-2">
+          <input className="input" placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} onBlur={commit} aria-label="Contact name" />
+          <input className="input" placeholder="Role (recruiter, referral…)" value={c.role ?? ""} onChange={(e) => set(i, { role: e.target.value })} onBlur={commit} aria-label="Contact role" />
+          <input className="input" placeholder="Email" type="email" value={c.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} onBlur={commit} aria-label="Contact email" />
+          <div className="flex items-center gap-1.5">
+            <input className="input" type="date" value={c.lastContact ?? ""} onChange={(e) => set(i, { lastContact: e.target.value })} onBlur={commit} aria-label="Last contact" title="Last contact" />
+            <button type="button" className="btn btn-sm shrink-0" onClick={() => touch(i)} title="Mark contacted today">
+              Today
+            </button>
+          </div>
+          <div className="col-span-2 flex items-center justify-between text-[11px] text-muted">
+            <span>{c.lastContact ? `Last contact ${formatRelativeDays(c.lastContact)}` : "No contact logged"}</span>
+            <button type="button" className="btn btn-ghost btn-sm text-danger" onClick={() => remove(i)}>
+              Remove
+            </button>
+          </div>
+        </div>
+      ))}
+      <div>
+        <button type="button" className="btn btn-soft btn-sm" onClick={() => setDraft((d) => [...d, { name: "" }])}>
+          Add contact
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function clean(c: Contact): Contact {
+  const out: Contact = { name: c.name };
+  if (c.email?.trim()) out.email = c.email.trim();
+  if (c.role?.trim()) out.role = c.role.trim();
+  if (c.lastContact) out.lastContact = c.lastContact;
+  return out;
+}
+
+// ------------------------------------------------------------ timeline
+
+function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string; label: string; details?: string }) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [details, setDetails] = useState("");
+  const events = [...app.events].map((e, i) => ({ ...e, i })).sort((a, b) => b.date.localeCompare(a.date) || b.i - a.i);
+
+  const save = () => {
+    if (!label.trim()) return;
+    const e: { date: string; label: string; details?: string } = { date: date || todayISO(), label: label.trim() };
+    if (details.trim()) e.details = details.trim();
+    onAdd(e);
+    setLabel("");
+    setDetails("");
+    setDate(todayISO());
+    setAdding(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {adding ? (
+        <div className="rounded-sm bg-hover p-2 flex flex-col gap-2">
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <input className="input" placeholder="Phone screen with Sam: system design, 45 min" value={label} onChange={(e) => setLabel(e.target.value)} autoFocus aria-label="Entry" />
+            <input className="input w-[140px]" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+          </div>
+          <textarea className="input" rows={4} placeholder="Questions asked, what to review, who you met…" value={details} onChange={(e) => setDetails(e.target.value)} aria-label="Details" />
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn btn-primary btn-sm" disabled={!label.trim()} onClick={save}>
+              Add entry
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <button type="button" className="btn btn-soft btn-sm" onClick={() => setAdding(true)}>
+            Add entry
+          </button>
+        </div>
+      )}
+      <ol className="flex flex-col">
+        {events.map((e) => (
+          <li key={`${e.date}-${e.i}`} className="grid grid-cols-[56px_1fr] gap-2 py-1.5 border-b border-line last:border-0 text-[12px]">
+            <span className="text-muted tabular-nums">{formatDate(e.date)}</span>
+            <div className="min-w-0">
+              <div className="text-fg">{e.label}</div>
+              {e.details && <div className="text-fg-2 whitespace-pre-wrap mt-0.5">{e.details}</div>}
+            </div>
+          </li>
+        ))}
+        <li className="grid grid-cols-[56px_1fr] gap-2 py-1.5 text-[12px] text-muted">
+          <span className="tabular-nums">{formatDate(app.createdAt.slice(0, 10))}</span>
+          <span>Created</span>
+        </li>
+      </ol>
+    </div>
   );
 }
 
@@ -251,7 +432,7 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
       }
     >
       <form
-        className="grid grid-cols-2 gap-x-3 gap-y-3"
+        className="card p-3 grid grid-cols-2 gap-x-3 gap-y-3"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();

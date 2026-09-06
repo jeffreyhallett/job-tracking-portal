@@ -20,6 +20,11 @@
   --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
   --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --shadow-btn: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 113, 227, 0.35);
+  --c-lane: rgba(0, 0, 0, 0.035);
+  --chart-1: #0071e3;
+  --chart-2: #b45309;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -41,6 +46,11 @@
     --shadow-card-hover: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
     --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
     --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+    --shadow-btn: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --c-lane: rgba(255, 255, 255, 0.035);
+    --chart-1: #2997ff;
+    --chart-2: #bd7d10;
   }
 }
 
@@ -59,6 +69,7 @@
   --color-warn: var(--c-warn);
   --color-danger: var(--c-danger);
   --color-ok: var(--c-ok);
+  --color-lane: var(--c-lane);
   --shadow-card: var(--shadow-card);
   --shadow-card-hover: var(--shadow-card-hover);
   --shadow-pop: var(--shadow-pop);
@@ -93,19 +104,27 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-sm bg-hover text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
-    @apply hover:bg-hover-2 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-sm bg-panel text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
+    box-shadow: var(--shadow-btn);
+    @apply hover:bg-hover active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
     transition: background-color 150ms ease, transform 100ms ease, box-shadow 150ms ease;
   }
   .btn-primary {
     @apply bg-accent text-accent-fg hover:bg-accent hover:brightness-110;
+    box-shadow: var(--shadow-btn-primary);
+  }
+  .btn-soft {
+    @apply bg-hover hover:bg-hover-2;
+    box-shadow: none;
   }
   .btn-ghost {
-    @apply bg-transparent text-fg-2 hover:text-fg;
+    @apply bg-transparent text-fg-2 hover:text-fg hover:bg-hover;
+    box-shadow: none;
   }
   .btn-danger {
     @apply text-danger bg-danger/10 hover:bg-danger/15;
+    box-shadow: none;
   }
   .btn-sm {
     @apply h-7 px-2.5 text-[12px];
@@ -142,12 +161,34 @@ body {
     @apply hover:bg-hover-2 hover:text-fg;
     transition: background-color 150ms ease, color 150ms ease;
   }
-  .chip-on {
-    @apply text-accent;
-    background: color-mix(in srgb, var(--c-accent) 14%, transparent);
-  }
+  .chip-on,
   .chip-on:hover {
-    background: color-mix(in srgb, var(--c-accent) 20%, transparent);
+    @apply bg-accent text-accent-fg;
+  }
+  /* Tinted status pill; --sc is the status hue, set inline. */
+  .pill {
+    @apply inline-flex items-center h-6 sm:h-7 rounded-full px-2 sm:px-2.5 text-[11px] sm:text-[12px] font-medium leading-none whitespace-nowrap;
+    background: color-mix(in srgb, var(--sc) 15%, transparent);
+    color: color-mix(in srgb, var(--sc) 72%, var(--c-fg));
+  }
+  select.pill {
+    @apply pr-6 appearance-none cursor-pointer bg-no-repeat;
+    box-shadow: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 8px center;
+    transition: filter 150ms ease;
+  }
+  select.pill:hover {
+    filter: brightness(0.96);
+  }
+  select.pill:focus {
+    @apply outline-none ring-2 ring-accent/40;
+  }
+  .lane {
+    @apply bg-lane rounded-lg;
+  }
+  .section-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-muted mb-2;
   }
   .card {
     @apply bg-panel rounded-md;
@@ -175,6 +216,27 @@ body {
   }
   .hairline {
     @apply border-line;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

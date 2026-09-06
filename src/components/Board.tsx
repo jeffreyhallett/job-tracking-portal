@@ -1,6 +1,7 @@
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
-import { attentionReasons, describeReason } from "../../shared/attention";
+import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention";
+import { CompanyMark } from "./CompanyMark";
 import { formatRelativeDays } from "../../shared/dates";
 import { STATUS_COLOR } from "../lib/status";
 import { AttentionDot } from "./ui";
@@ -9,13 +10,14 @@ type Props = {
   apps: Application[];
   errors: Record<string, string>;
   now: Date;
+  focusedId: string | null;
   onOpen: (id: string) => void;
   onMove: (id: string, status: Status) => void;
 };
 
 const DRAG_MIME = "text/plain";
 
-export function Board({ apps, errors, now, onOpen, onMove }: Props) {
+export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
   const [over, setOver] = useState<Status | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
@@ -40,7 +42,7 @@ export function Board({ apps, errors, now, onOpen, onMove }: Props) {
             <section
               key={status}
               aria-label={STATUS_LABELS[status]}
-              className={`flex flex-col w-[236px] rounded-lg h-full transition-colors ${isOver ? "bg-accent/8 ring-2 ring-accent/40" : ""}`}
+              className={`lane flex flex-col w-[240px] h-full transition-[background-color,box-shadow] ${isOver ? "bg-accent/10 ring-2 ring-accent/40" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
@@ -51,18 +53,19 @@ export function Board({ apps, errors, now, onOpen, onMove }: Props) {
               }}
               onDrop={(e) => onDrop(e, status)}
             >
-              <header className="flex items-center gap-2 h-8 px-2 shrink-0">
+              <header className="flex items-center gap-2 h-9 px-3 shrink-0">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLOR[status] }} />
                 <span className="text-[12px] font-semibold tracking-[-0.01em]">{STATUS_LABELS[status]}</span>
                 <span className="text-[11px] text-muted tabular-nums">{col.length}</span>
               </header>
-              <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 flex flex-col gap-2">
+              <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 flex flex-col gap-2">
                 {col.map((a) => (
                   <Card
                     key={a.id}
                     app={a}
                     now={now}
                     error={errors[a.id]}
+                    focused={focusedId === a.id}
                     dragging={dragging === a.id}
                     onOpen={() => onOpen(a.id)}
                     onDragStart={(e) => {
@@ -90,17 +93,24 @@ type CardProps = {
   app: Application;
   now: Date;
   error?: string;
+  focused: boolean;
   dragging: boolean;
   onOpen: () => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
 };
 
-function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: CardProps) {
+function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragEnd }: CardProps) {
   const reasons = attentionReasons(app, now);
   const attention = reasons.map(describeReason).join(", ");
+  const snoozed = isSnoozed(app, now);
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: "nearest" });
+  }, [focused]);
   return (
     <article
+      ref={ref}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -113,11 +123,12 @@ function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: Car
       }}
       tabIndex={0}
       role="button"
-      className={`group card px-3 py-2.5 cursor-grab active:cursor-grabbing hover:[box-shadow:var(--shadow-card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition-[box-shadow,opacity,transform] duration-150 ${dragging ? "opacity-40 scale-[0.98]" : ""} ${error ? "ring-1 ring-danger/60" : ""}`}
+      className={`group card px-3 py-2.5 cursor-grab active:cursor-grabbing hover:[box-shadow:var(--shadow-card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition-[box-shadow,opacity,transform] duration-150 animate-[card-in_160ms_ease-out] ${dragging ? "opacity-40 scale-[0.98]" : ""} ${error ? "ring-1 ring-danger/60" : ""} ${focused ? "ring-2 ring-accent/60" : ""}`}
     >
-      <div className="flex items-start gap-1.5">
+      <div className="flex items-start gap-2.5">
+        <CompanyMark company={app.company} url={app.url} size={28} className="mt-px" />
         <div className="min-w-0 flex-1">
-          <div className="font-semibold truncate leading-tight tracking-[-0.01em]">{app.company}</div>
+          <div className="font-semibold truncate leading-tight tracking-[-0.01em] text-[13.5px]">{app.company}</div>
           <div className="text-fg-2 truncate leading-tight text-[12px] mt-0.5">{app.role}</div>
         </div>
         {reasons.length > 0 && (
@@ -125,6 +136,7 @@ function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: Car
             <AttentionDot title={attention} />
           </div>
         )}
+        {snoozed && <span className="text-[10px] font-medium text-muted pt-0.5" title={`Snoozed until ${app.snoozedUntil ?? ""}`}>zz</span>}
       </div>
       {(app.location || app.nextActionDate || app.deadline || (app.tags && app.tags.length > 0)) && (
         <div className="mt-1.5 flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[11px] text-muted leading-tight">

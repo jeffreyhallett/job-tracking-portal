@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Status } from "../shared/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { STATUSES, type Status } from "../shared/types";
+import { computeStats, weeklyFunnel } from "../shared/stats";
+import { needsAttention } from "../shared/attention";
+import { contextForClaude } from "../shared/import";
 import { getToken, UNAUTHORIZED_EVENT } from "./auth";
 import { Board } from "./components/Board";
 import { Drawer } from "./components/Drawer";
 import { FilterBar } from "./components/FilterBar";
-import { PasswordGate } from "./components/PasswordGate";
 import { Header } from "./components/Header";
+import { PasswordGate } from "./components/PasswordGate";
+import { ShortcutsHelp } from "./components/ShortcutsHelp";
 import { StatsStrip } from "./components/StatsStrip";
 import { SyncModal } from "./components/SyncModal";
 import { TableView } from "./components/TableView";
-import { needsAttention } from "../shared/attention";
+import { Toast } from "./components/Toast";
 import { allTags, applyFilters, EMPTY_FILTERS, type Filters } from "./lib/filters";
-import { contextForClaude } from "../shared/import";
-import { loadView, saveView, type ViewMode } from "./lib/prefs";
-import { computeStats } from "../shared/stats";
+import { loadSort, loadView, saveSort, saveView, type ViewMode } from "./lib/prefs";
+import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
+import { boardOrder, sortApps, type Sort } from "./lib/sort";
 import { useMediaQuery } from "./lib/useMediaQuery";
 import { useApplications } from "./state/store";
 
@@ -30,17 +34,22 @@ export default function App() {
 
 function Tracker() {
   const store = useApplications();
-  const { apps, owner, loaded, loadError, errors } = store.state;
+  const { apps, owner, loaded, loadError, errors, toast } = store.state;
 
   const [view, setView] = useState<ViewMode>(loadView);
   useEffect(() => saveView(view), [view]);
+  const [sort, setSort] = useState<Sort>(loadSort);
+  useEffect(() => saveSort(sort), [sort]);
   const narrow = useMediaQuery("(max-width: 767px)");
   const effectiveView: ViewMode = narrow ? "table" : view;
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // One clock per render pass; re-tick every minute so "today" rolls over.
   const [now, setNow] = useState(() => new Date());
@@ -51,7 +60,9 @@ function Tracker() {
 
   const attentionCount = useMemo(() => apps.filter((a) => needsAttention(a, now)).length, [apps, now]);
   const filtered = useMemo(() => applyFilters(apps, filters, now), [apps, filters, now]);
+  const ordered = useMemo(() => (effectiveView === "board" ? boardOrder(filtered) : sortApps(filtered, sort)), [filtered, effectiveView, sort]);
   const stats = useMemo(() => computeStats(apps), [apps]);
+  const weeks = useMemo(() => weeklyFunnel(apps, 8, now), [apps, now]);
   const tags = useMemo(() => allTags(apps), [apps]);
   const selected = selectedId ? (apps.find((a) => a.id === selectedId) ?? null) : null;
 
@@ -60,7 +71,59 @@ function Tracker() {
     setCreating(false);
   }, []);
   const closeSync = useCallback(() => setSyncOpen(false), []);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
   const onMove = useCallback((id: string, status: Status) => store.setStatus(id, status), [store]);
+  const open = useCallback((id: string) => {
+    setFocusedId(id);
+    setSelectedId(id);
+    setCreating(false);
+  }, []);
+
+  const shortcuts = useMemo<ShortcutHandlers>(() => {
+    const step = (delta: number) => {
+      if (ordered.length === 0) return;
+      const i = focusedId ? ordered.findIndex((a) => a.id === focusedId) : -1;
+      const next = ordered[Math.min(ordered.length - 1, Math.max(0, i + delta))] ?? ordered[0];
+      if (next) {
+        setFocusedId(next.id);
+        if (selectedId) setSelectedId(next.id);
+      }
+    };
+    const target = () => selectedId ?? focusedId;
+    return {
+      newApplication: () => {
+        setSelectedId(null);
+        setCreating(true);
+      },
+      focusSearch: () => searchRef.current?.focus(),
+      next: () => step(1),
+      prev: () => step(-1),
+      open: () => {
+        const id = target();
+        if (id) open(id);
+      },
+      close: () => {
+        if (syncOpen) setSyncOpen(false);
+        else if (helpOpen) setHelpOpen(false);
+        else if (selectedId || creating) closeDrawer();
+        else setFocusedId(null);
+      },
+      setStatusIndex: (i) => {
+        const id = target();
+        const status = STATUSES[i];
+        if (id && status) store.setStatus(id, status);
+      },
+      snooze: () => {
+        const id = target();
+        if (id) store.snooze(id, 7);
+      },
+      toggleView: () => {
+        if (!narrow) setView((v) => (v === "board" ? "table" : "board"));
+      },
+      help: () => setHelpOpen((h) => !h),
+    };
+  }, [ordered, focusedId, selectedId, creating, syncOpen, helpOpen, narrow, open, closeDrawer, store]);
+  useShortcuts(shortcuts);
 
   return (
     <>
@@ -76,12 +139,13 @@ function Tracker() {
           setCreating(true);
         }}
         onSync={() => setSyncOpen(true)}
+        onHelp={() => setHelpOpen(true)}
         contextJson={() => contextForClaude(apps)}
       />
-      <StatsStrip stats={stats} shown={filtered.length} total={apps.length} />
-      <FilterBar filters={filters} onChange={setFilters} tags={tags} />
+      <StatsStrip stats={stats} weeks={weeks} shown={filtered.length} total={apps.length} />
+      <FilterBar filters={filters} onChange={setFilters} tags={tags} searchRef={searchRef} />
 
-      <main className="flex-1 min-h-0 flex flex-col pt-1">
+      <main className="flex-1 min-h-0 flex flex-col">
         {!loaded && <div className="p-4 text-muted text-[12px]">Loading…</div>}
         {loaded && loadError && (
           <div className="p-4 text-[12px]">
@@ -100,15 +164,17 @@ function Tracker() {
           </div>
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "board" && (
-          <Board apps={filtered} errors={errors} now={now} onOpen={setSelectedId} onMove={onMove} />
+          <Board apps={filtered} errors={errors} now={now} focusedId={focusedId} onOpen={open} onMove={onMove} />
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "table" && (
-          <TableView apps={filtered} errors={errors} now={now} onOpen={setSelectedId} onStatus={onMove} />
+          <TableView apps={filtered} errors={errors} now={now} sort={sort} onSort={setSort} focusedId={focusedId} onOpen={open} onStatus={onMove} />
         )}
       </main>
 
       {(selected || creating) && <Drawer app={creating ? null : selected} store={store} now={now} onClose={closeDrawer} />}
       {syncOpen && <SyncModal apps={apps} store={store} onClose={closeSync} />}
+      {helpOpen && <ShortcutsHelp onClose={closeHelp} />}
+      <Toast toast={toast} onDismiss={store.dismissToast} />
     </>
   );
 }

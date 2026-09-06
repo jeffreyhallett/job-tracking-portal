@@ -28,19 +28,21 @@ Query: `activityDays` (default 7, max 90), `horizonDays` (default 14, max 90).
 {
   "generatedAt": "2026-09-06T14:00:00.000Z",
   "today": "2026-09-06",
-  "counts": { "total": 12, "active": 9, "needsAttention": 3 },
+  "counts": { "total": 12, "active": 9, "needsAttention": 3, "snoozed": 1 },
   "pipeline": { "interested": 4, "applied": 3, "oa": 1, "phone_screen": 1, "onsite": 0, "offer": 0, "rejected": 2, "ghosted": 1, "withdrawn": 0 },
   "stats": { "active": 9, "applied": 6, "responded": 2, "responseRate": 0.33, "medianDaysToResponse": 7 },
   "needsAttention": [
-    { "id": "…", "company": "Amazon", "role": "SDE I, Leo", "status": "applied", "reasons": ["no movement in 20d"], "updatedAt": "…" }
+    { "id": "…", "company": "Amazon", "role": "SDE I, Leo", "status": "applied", "reasons": ["no movement in 20d"], "updatedAt": "…",
+      "contacts": [{ "name": "Sam Recruiter", "email": "sam@example.com", "role": "Recruiter", "lastContact": "2026-08-20" }] }
   ],
+  "snoozed": [{ "id": "…", "company": "Ramp", "role": "…", "status": "oa", "snoozedUntil": "2026-09-12" }],
   "upcomingDeadlines": [{ "id": "…", "company": "InstaLILY", "role": "Software Engineer", "status": "interested", "deadline": "2026-09-10", "daysUntil": 4 }],
   "nextActions": [{ "id": "…", "company": "Stripe", "role": "…", "status": "phone_screen", "nextAction": "Prep for recruiter call", "nextActionDate": "2026-09-05", "daysUntil": -1 }],
   "recentActivity": [{ "id": "…", "company": "Ramp", "role": "…", "status": "oa", "date": "2026-09-04", "label": "Status: OA" }]
 }
 ```
 
-`needsAttention` uses the same three rules as the header count. `nextActions` includes overdue items (negative `daysUntil`).
+`needsAttention` uses the same three rules as the header count and skips anything the user snoozed (those are listed under `snoozed` instead). `contacts` appears on an item when the user has logged people for it, so a follow-up suggestion can name who to write to. `nextActions` includes overdue items (negative `daysUntil`).
 
 ### `GET /api/agent/context`
 
@@ -48,7 +50,11 @@ The compact skip-list, identical to the Copy context button: `[{ company, role, 
 
 ### `GET /api/applications`
 
-Every row in full. Use when the agent needs notes or the events timeline.
+Every row in full. Use when the agent needs notes, contacts, or the events timeline. Timeline entries are `{ date, label, details? }`; `details` carries the free text of manual entries (interview notes, prep).
+
+### `GET /api/agent/calendar?token=<AGENT_TOKEN>`
+
+An iCalendar feed of deadlines and next actions for every non-closed application, as all-day events. Subscribe to the URL from Google Calendar (Other calendars → From URL) or Apple Calendar (File → New Calendar Subscription). Calendar apps cannot send headers, which is why this one takes the token as a query parameter.
 
 ### `POST /api/agent/import`
 
@@ -86,6 +92,8 @@ Simpler for an agent: `PATCH` with `{ "nextAction": "Send thank-you note", "next
 ### `POST /api/applications/:id/events`
 
 Body `{ "label": "Recruiter replied, OA link sent", "date": "2026-09-06" }` (date optional, defaults to today). Appends one timeline event atomically and bumps `updatedAt`, which clears the "stale" flag. Use this to log things the agent learned from email or a calendar.
+
+To record who was involved, patch `contacts` on the row: `PATCH /api/applications/:id` with `{ "contacts": [ …existing…, { "name": "…", "email": "…", "role": "Recruiter", "lastContact": "2026-09-06" } ] }`. To mute attention on a row for a while: `{ "snoozedUntil": "2026-09-13" }`.
 
 ### `DELETE /api/applications/:id`
 

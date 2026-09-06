@@ -135,6 +135,14 @@ Every row carries `owner_id`, and every handler gets the current owner from `get
 
 **Optimistic writes.** Edits apply immediately and PATCH in the background. On failure the row rolls back and a small inline error appears on the card or table row for a few seconds.
 
+**Contacts, snooze, timeline entries.** Each application can hold contacts (name, role, email, last touch) and free-text timeline entries for interview notes. Snoozing an application (3d / 1w / 2w in the drawer, or `s` on the keyboard) mutes its attention rules until that date; the digest lists snoozed rows separately.
+
+**Undo.** Deleting, or moving to another status, shows a toast with Undo. A delete is only sent to the server after the undo window closes.
+
+**Calendar.** `/api/agent/calendar?token=<AGENT_TOKEN>` is an iCalendar feed of deadlines and next actions; subscribe to it from Google or Apple Calendar.
+
+**Keyboard.** Press `?` in the app for the list: `n` new, `/` search, `j`/`k` move, `↵` open, `1`–`9` set status, `s` snooze a week, `v` switch view.
+
 **Board on phones.** Below 768px the board collapses to the table automatically; the board/table toggle (stored in `localStorage`) only applies on wider screens.
 
 ### Sync from Claude

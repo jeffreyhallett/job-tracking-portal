@@ -15,7 +15,14 @@ export const DEADLINE_WINDOW_DAYS = 7;
  *  - nextActionDate is today or past
  *  - status still `interested` and the deadline is within 7 days
  */
-export function attentionReasons(app: Application, now: Date = new Date()): AttentionReason[] {
+/** True while the app's attention rules are muted. */
+export function isSnoozed(app: Application, now: Date = new Date()): boolean {
+  const until = parseDate(app.snoozedUntil);
+  return until !== undefined && daysBetween(now, until) > 0;
+}
+
+/** Reasons regardless of snooze; the UI shows these greyed out while snoozed. */
+export function rawAttentionReasons(app: Application, now: Date = new Date()): AttentionReason[] {
   const reasons: AttentionReason[] = [];
 
   if (IN_FLIGHT_STAGES.includes(app.status)) {
@@ -36,6 +43,11 @@ export function attentionReasons(app: Application, now: Date = new Date()): Atte
   }
 
   return reasons;
+}
+
+/** Reasons that count: empty while snoozed. */
+export function attentionReasons(app: Application, now: Date = new Date()): AttentionReason[] {
+  return isSnoozed(app, now) ? [] : rawAttentionReasons(app, now);
 }
 
 export function needsAttention(app: Application, now: Date = new Date()): boolean {

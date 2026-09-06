@@ -39,7 +39,16 @@ export const CLOSED_STAGES: readonly Status[] = ["rejected", "ghosted", "withdra
 export const WORK_MODELS = ["onsite", "hybrid", "remote"] as const;
 export type WorkModel = (typeof WORK_MODELS)[number];
 
-export type ApplicationEvent = { date: string; label: string };
+/** Timeline entry. `details` holds free text for manual entries (interview notes, prep). */
+export type ApplicationEvent = { date: string; label: string; details?: string };
+
+export type Contact = {
+  name: string;
+  email?: string;
+  role?: string; // "Recruiter", "Hiring manager", "Referral"
+  /** YYYY-MM-DD of the last touch, either direction. */
+  lastContact?: string;
+};
 
 export type Application = {
   id: string;
@@ -60,6 +69,9 @@ export type Application = {
   nextActionDate?: string;
   tags?: string[];
   events: ApplicationEvent[];
+  contacts?: Contact[];
+  /** Attention rules are muted until this date (YYYY-MM-DD). */
+  snoozedUntil?: string;
   createdAt: string;
   updatedAt: string;
 };
