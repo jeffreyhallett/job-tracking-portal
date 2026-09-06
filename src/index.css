@@ -1,83 +1,112 @@
 @import "tailwindcss";
 
-/* Neutral canvas, white surfaces, one accent. Status hues live in src/lib/status.ts. */
+/* ------------------------------------------------------------------ tokens
+   Tonal system: one canvas, white surfaces, a tinted container level, one
+   accent with a tonal container pair, and reserved warning/danger/ok pairs.
+   Status hues live in src/lib/status.ts. */
 :root {
-  --c-bg: #f5f5f7;
+  --c-bg: #f2f4f8;
   --c-panel: #ffffff;
-  --c-line: rgba(0, 0, 0, 0.08);
-  --c-line-strong: rgba(0, 0, 0, 0.16);
-  --c-fg: #1d1d1f;
-  --c-fg-2: #515154;
-  --c-muted: #86868b;
-  --c-accent: #0071e3;
+  --c-surface-2: #eaedf4;
+  --c-surface-3: #dfe3ec;
+  --c-line: rgba(24, 28, 40, 0.09);
+  --c-line-strong: rgba(24, 28, 40, 0.18);
+  --c-fg: #191b22;
+  --c-fg-2: #4b4f5c;
+  --c-muted: #7a7e8b;
+  --c-accent: #2d5cf6;
+  --c-accent-strong: #1f47d1;
   --c-accent-fg: #ffffff;
-  --c-hover: rgba(0, 0, 0, 0.045);
-  --c-hover-2: rgba(0, 0, 0, 0.08);
-  --c-warn: #c2410c;
-  --c-danger: #d70015;
-  --c-ok: #248a3d;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  --shadow-btn: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 113, 227, 0.35);
-  --c-lane: rgba(0, 0, 0, 0.035);
-  --chart-1: #0071e3;
+  --c-accent-container: #dfe6ff;
+  --c-on-accent-container: #1a3ab0;
+  --c-hover: rgba(24, 28, 40, 0.05);
+  --c-hover-2: rgba(24, 28, 40, 0.09);
+  --c-warn: #8a4b00;
+  --c-warn-container: #ffedcf;
+  --c-danger: #b3261e;
+  --c-danger-container: #ffe2df;
+  --c-ok: #146c43;
+  --c-ok-container: #d6f2e2;
+  --c-inverse: #1e2028;
+  --c-inverse-fg: #f3f4f8;
+  --c-lane: rgba(24, 28, 40, 0.045);
+  --chart-1: #2d5cf6;
   --chart-2: #b45309;
+  --shadow-1: 0 1px 2px rgba(20, 24, 40, 0.06), 0 0 0 1px rgba(20, 24, 40, 0.05);
+  --shadow-2: 0 6px 18px rgba(20, 24, 40, 0.1), 0 0 0 1px rgba(20, 24, 40, 0.05);
+  --shadow-3: 0 18px 50px rgba(20, 24, 40, 0.22), 0 0 0 1px rgba(20, 24, 40, 0.06);
+  --shadow-4: 0 28px 80px rgba(20, 24, 40, 0.32), 0 0 0 1px rgba(20, 24, 40, 0.06);
+  --shadow-fab: 0 8px 24px rgba(45, 92, 246, 0.38), 0 2px 6px rgba(20, 24, 40, 0.15);
+  --shadow-seg: 0 1px 3px rgba(20, 24, 40, 0.14), 0 0 0 0.5px rgba(20, 24, 40, 0.05);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --c-bg: #0b0b0c;
-    --c-panel: #1c1c1e;
-    --c-line: rgba(255, 255, 255, 0.1);
-    --c-line-strong: rgba(255, 255, 255, 0.2);
-    --c-fg: #f5f5f7;
-    --c-fg-2: #a1a1a6;
-    --c-muted: #6e6e73;
-    --c-accent: #2997ff;
-    --c-accent-fg: #ffffff;
+    --c-bg: #0f1015;
+    --c-panel: #1a1b21;
+    --c-surface-2: #22242c;
+    --c-surface-3: #2b2e38;
+    --c-line: rgba(255, 255, 255, 0.09);
+    --c-line-strong: rgba(255, 255, 255, 0.18);
+    --c-fg: #eceef4;
+    --c-fg-2: #b2b6c2;
+    --c-muted: #7c8090;
+    --c-accent: #8fb0ff;
+    --c-accent-strong: #a9c2ff;
+    --c-accent-fg: #0b1d5c;
+    --c-accent-container: #2a3c78;
+    --c-on-accent-container: #d8e1ff;
     --c-hover: rgba(255, 255, 255, 0.06);
     --c-hover-2: rgba(255, 255, 255, 0.11);
-    --c-warn: #ff9f0a;
-    --c-danger: #ff453a;
-    --c-ok: #30d158;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
-    --shadow-card-hover: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
-    --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
-    --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
-    --shadow-btn: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --c-lane: rgba(255, 255, 255, 0.035);
-    --chart-1: #2997ff;
+    --c-warn: #ffc46b;
+    --c-warn-container: #3d2b08;
+    --c-danger: #ffb4ab;
+    --c-danger-container: #4a1c1a;
+    --c-ok: #7fdca4;
+    --c-ok-container: #123a26;
+    --c-inverse: #eceef4;
+    --c-inverse-fg: #191b22;
+    --c-lane: rgba(255, 255, 255, 0.055);
+    --chart-1: #8fb0ff;
     --chart-2: #bd7d10;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --shadow-2: 0 8px 22px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09);
+    --shadow-3: 0 18px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.09);
+    --shadow-4: 0 28px 80px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.09);
+    --shadow-fab: 0 8px 24px rgba(143, 176, 255, 0.28), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow-seg: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
   }
 }
 
 @theme inline {
   --color-bg: var(--c-bg);
   --color-panel: var(--c-panel);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
   --color-line: var(--c-line);
   --color-line-strong: var(--c-line-strong);
   --color-fg: var(--c-fg);
   --color-fg-2: var(--c-fg-2);
   --color-muted: var(--c-muted);
   --color-accent: var(--c-accent);
+  --color-accent-strong: var(--c-accent-strong);
   --color-accent-fg: var(--c-accent-fg);
+  --color-accent-container: var(--c-accent-container);
+  --color-on-accent-container: var(--c-on-accent-container);
   --color-hover: var(--c-hover);
   --color-hover-2: var(--c-hover-2);
   --color-warn: var(--c-warn);
+  --color-warn-container: var(--c-warn-container);
   --color-danger: var(--c-danger);
+  --color-danger-container: var(--c-danger-container);
   --color-ok: var(--c-ok);
+  --color-ok-container: var(--c-ok-container);
+  --color-inverse: var(--c-inverse);
+  --color-inverse-fg: var(--c-inverse-fg);
   --color-lane: var(--c-lane);
-  --shadow-card: var(--shadow-card);
-  --shadow-card-hover: var(--shadow-card-hover);
-  --shadow-pop: var(--shadow-pop);
-  --shadow-seg: var(--shadow-seg);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -99,23 +128,31 @@ body {
   flex-direction: column;
 }
 ::selection {
-  background: color-mix(in srgb, var(--c-accent) 25%, transparent);
+  background: color-mix(in srgb, var(--c-accent) 28%, transparent);
 }
 
 @layer components {
+  /* ---- buttons: pill shaped. Filled (primary), tonal, outlined (default), text (ghost), icon. */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-sm bg-panel text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
-    box-shadow: var(--shadow-btn);
+    @apply inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-panel text-fg text-[13px] font-medium leading-none whitespace-nowrap select-none;
+    box-shadow: inset 0 0 0 1px var(--c-line-strong);
     @apply hover:bg-hover active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50;
-    transition: background-color 150ms ease, transform 100ms ease, box-shadow 150ms ease;
+    transition: background-color 150ms ease, transform 100ms ease, box-shadow 150ms ease, color 150ms ease;
   }
   .btn-primary {
-    @apply bg-accent text-accent-fg hover:bg-accent hover:brightness-110;
-    box-shadow: var(--shadow-btn-primary);
+    @apply bg-accent text-accent-fg hover:bg-accent-strong;
+    box-shadow: 0 1px 2px rgba(20, 24, 40, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  .btn-tonal {
+    @apply bg-accent-container text-on-accent-container;
+    box-shadow: none;
+  }
+  .btn-tonal:hover {
+    background: color-mix(in srgb, var(--c-accent-container) 85%, var(--c-accent));
   }
   .btn-soft {
-    @apply bg-hover hover:bg-hover-2;
+    @apply bg-surface-2 hover:bg-surface-3;
     box-shadow: none;
   }
   .btn-ghost {
@@ -123,58 +160,108 @@ body {
     box-shadow: none;
   }
   .btn-danger {
-    @apply text-danger bg-danger/10 hover:bg-danger/15;
+    @apply text-danger bg-danger-container;
     box-shadow: none;
   }
-  .btn-sm {
-    @apply h-7 px-2.5 text-[12px];
+  .btn-danger:hover {
+    background: color-mix(in srgb, var(--c-danger-container) 85%, var(--c-danger));
   }
+  .btn-sm {
+    @apply h-8 px-3 text-[12px];
+  }
+  .btn-icon {
+    @apply w-9 h-9 px-0 rounded-full;
+  }
+
+  /* ---- inputs */
   .input {
-    @apply h-8 px-2.5 rounded-sm bg-panel text-fg text-[13px] leading-none w-full;
-    box-shadow: inset 0 0 0 1px var(--c-line);
+    @apply h-9 px-3 rounded-sm bg-panel text-fg text-[13px] leading-none w-full;
+    box-shadow: inset 0 0 0 1px var(--c-line-strong);
     @apply placeholder:text-muted focus:outline-none;
     transition: box-shadow 150ms ease;
   }
   .input:focus {
-    box-shadow: inset 0 0 0 1px var(--c-accent), 0 0 0 3px color-mix(in srgb, var(--c-accent) 20%, transparent);
+    box-shadow: inset 0 0 0 2px var(--c-accent);
   }
   textarea.input {
     @apply h-auto py-2 leading-[1.45];
   }
   select.input {
-    @apply pr-7 appearance-none bg-no-repeat;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-position: right 8px center;
+    @apply pr-8 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a7e8b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 10px center;
   }
   .search {
-    @apply rounded-full bg-hover pl-8;
+    @apply rounded-full bg-surface-2 pl-9 h-10;
     box-shadow: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 13 13'%3E%3Ccircle cx='5.5' cy='5.5' r='4' fill='none' stroke='%2386868b' stroke-width='1.5'/%3E%3Cpath d='M8.5 8.5l3 3' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a7e8b' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.5 3.5a7 7 0 1 1 0 14 7 7 0 0 1 0-14ZM15.5 15.5 20.5 20.5'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: 10px center;
+    background-position: 12px center;
   }
   .search:focus {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 20%, transparent);
+    @apply bg-panel;
+    box-shadow: inset 0 0 0 2px var(--c-accent);
   }
+
+  /* ---- chips: outlined at rest, tonal when selected */
   .chip {
-    @apply inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-hover text-[12px] font-medium text-fg-2 leading-none whitespace-nowrap select-none cursor-pointer;
-    @apply hover:bg-hover-2 hover:text-fg;
-    transition: background-color 150ms ease, color 150ms ease;
+    @apply inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-panel text-[12px] font-medium text-fg-2 leading-none whitespace-nowrap select-none cursor-pointer;
+    box-shadow: inset 0 0 0 1px var(--c-line);
+    @apply hover:bg-hover hover:text-fg;
+    transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
   }
   .chip-on,
   .chip-on:hover {
-    @apply bg-accent text-accent-fg;
+    @apply bg-accent-container text-on-accent-container;
+    box-shadow: none;
   }
-  /* Tinted status pill; --sc is the status hue, set inline. */
+  .chip-warn {
+    @apply bg-warn-container text-warn;
+    box-shadow: none;
+  }
+
+  /* ---- surfaces */
+  .card {
+    @apply bg-panel rounded-md;
+    box-shadow: var(--shadow-1);
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-2);
+  }
+  .lane {
+    @apply bg-lane rounded-lg;
+  }
+  .tile {
+    @apply bg-surface-2 rounded-md;
+  }
+
+  /* ---- badges (tonal, with icon) */
+  .badge {
+    @apply inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium leading-none whitespace-nowrap;
+  }
+  .badge-warn {
+    @apply bg-warn-container text-warn;
+  }
+  .badge-muted {
+    @apply bg-surface-2 text-muted;
+  }
+  .badge-ok {
+    @apply bg-ok-container text-ok;
+  }
+  .badge-danger {
+    @apply bg-danger-container text-danger;
+  }
+
+  /* ---- status pill; --sc is the status hue, set inline */
   .pill {
     @apply inline-flex items-center h-6 sm:h-7 rounded-full px-2 sm:px-2.5 text-[11px] sm:text-[12px] font-medium leading-none whitespace-nowrap;
-    background: color-mix(in srgb, var(--sc) 15%, transparent);
-    color: color-mix(in srgb, var(--sc) 72%, var(--c-fg));
+    background: color-mix(in srgb, var(--sc) 16%, var(--c-panel));
+    color: color-mix(in srgb, var(--sc) 70%, var(--c-fg));
   }
   select.pill {
     @apply pr-6 appearance-none cursor-pointer bg-no-repeat;
     box-shadow: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 8px center;
     transition: filter 150ms ease;
   }
@@ -184,38 +271,39 @@ body {
   select.pill:focus {
     @apply outline-none ring-2 ring-accent/40;
   }
-  .lane {
-    @apply bg-lane rounded-lg;
-  }
-  .section-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-muted mb-2;
-  }
-  .card {
-    @apply bg-panel rounded-md;
-    box-shadow: var(--shadow-card);
-  }
+
+  /* ---- segmented button (Material style: outlined, selected segment tonal) */
   .seg {
-    @apply inline-flex items-center rounded-[9px] bg-hover p-[3px] gap-[2px];
+    @apply inline-flex items-center rounded-full bg-panel p-[3px] gap-[2px];
+    box-shadow: inset 0 0 0 1px var(--c-line-strong);
   }
   .seg-item {
-    @apply h-[26px] px-3 rounded-[7px] text-[12px] font-medium text-fg-2 leading-none select-none;
-    transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+    @apply h-[30px] px-4 rounded-full text-[12px] font-medium text-fg-2 leading-none select-none inline-flex items-center gap-1.5;
+    transition: background-color 150ms ease, color 150ms ease;
   }
   .seg-item:hover {
-    @apply text-fg;
+    @apply text-fg bg-hover;
   }
   .seg-item[aria-selected="true"] {
-    @apply bg-panel text-fg;
-    box-shadow: var(--shadow-seg);
+    @apply bg-accent-container text-on-accent-container;
   }
+
   .label {
     @apply block text-[12px] font-medium text-fg-2 mb-1;
   }
-  .kbd {
-    @apply font-mono text-[11px] px-1.5 py-0.5 rounded-[5px] bg-hover text-fg-2;
+  .section-title {
+    @apply flex items-center gap-1.5 text-[12px] font-semibold text-fg-2 mb-2.5;
   }
-  .hairline {
-    @apply border-line;
+  .kbd {
+    @apply font-mono text-[11px] px-1.5 py-0.5 rounded-[6px] bg-surface-2 text-fg-2;
+    box-shadow: inset 0 -1px 0 var(--c-line-strong);
+  }
+  .fab {
+    @apply fixed right-4 z-30 w-14 h-14 rounded-2xl bg-accent text-accent-fg inline-flex items-center justify-center;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-fab);
+    @apply active:scale-95;
+    transition: transform 100ms ease;
   }
 }
 
@@ -239,20 +327,30 @@ body {
     transform: translateY(0);
   }
 }
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
 /* Larger tap targets on iOS without changing the desktop density. */
 @media (pointer: coarse) {
   .btn,
   .input,
   select.input {
-    min-height: 36px;
+    min-height: 40px;
   }
   .input,
   select.input {
     font-size: 16px; /* prevents Safari zoom-on-focus */
   }
   select.input {
-    padding-left: 8px;
-    padding-right: 24px;
+    padding-left: 10px;
+    padding-right: 26px;
   }
 }

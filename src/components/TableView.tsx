@@ -5,7 +5,8 @@ import { daysSince, formatDate, formatRelativeDays } from "../../shared/dates";
 import { sortApps, type Sort, type SortKey } from "../lib/sort";
 import { STATUS_COLOR } from "../lib/status";
 import { CompanyMark } from "./CompanyMark";
-import { AttentionDot, Caret } from "./ui";
+import { Icon } from "./Icon";
+import { Caret } from "./ui";
 
 type Props = {
   apps: Application[];
@@ -35,20 +36,20 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
   const onHeader = (key: SortKey) => onSort(sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "updatedAt" ? "desc" : "asc" });
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto px-2 sm:px-4 pb-3">
-      <div className="card overflow-hidden min-w-max sm:min-w-0">
+    <div className="flex-1 min-h-0 overflow-auto px-2 sm:px-6 pb-4">
+      <div className="card overflow-hidden min-w-max sm:min-w-0 rounded-lg">
       <table className="w-full border-collapse text-[13px]">
-        <thead className="sticky top-0 bg-panel z-10">
-          <tr className="text-left text-[11px] font-medium text-muted">
+        <thead className="sticky top-0 bg-surface-2 z-10">
+          <tr className="text-left text-[12px] font-medium text-fg-2">
             {COLUMNS.map((c) => (
-              <th key={c.key} className={`font-medium px-2 sm:px-3 h-9 border-b border-line whitespace-nowrap ${c.className ?? ""}`}>
+              <th key={c.key} className={`font-medium px-2 sm:px-3 h-10 border-b border-line whitespace-nowrap ${c.className ?? ""}`}>
                 <button type="button" className="hover:text-fg" onClick={() => onHeader(c.key)} aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
                   {c.label}
                   <Caret dir={sort.key === c.key ? sort.dir : null} />
                 </button>
               </th>
             ))}
-            <th className="w-6 border-b border-line hidden sm:table-cell" aria-label="Attention" />
+            <th className="w-10 border-b border-line hidden sm:table-cell" aria-label="Attention" />
           </tr>
         </thead>
         <tbody>
@@ -61,7 +62,7 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
               <Row
                 key={a.id}
                 focused={focusedId === a.id}
-                className={`border-b border-line last:border-0 hover:bg-hover cursor-pointer transition-colors ${focusedId === a.id ? "bg-accent/8" : ""}`}
+                className={`border-b border-line last:border-0 hover:bg-hover cursor-pointer transition-colors ${focusedId === a.id ? "bg-accent-container/50" : ""}`}
                 onClick={() => onOpen(a.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") onOpen(a.id);
@@ -71,7 +72,9 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                 <td className="px-2 sm:px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
                   <div className="relative inline-flex items-center" style={{ ["--sc" as string]: STATUS_COLOR[a.status] }}>
                     {/* Phone: readable pill with the native select laid invisibly on top (16px fonts stop Safari zooming). */}
-                    <span className="pill sm:hidden max-w-[84px] overflow-hidden text-ellipsis block">{STATUS_LABELS[a.status]}</span>
+                    <span className="pill sm:hidden max-w-[84px]">
+                      <span className="truncate">{STATUS_LABELS[a.status]}</span>
+                    </span>
                     <select
                       className="pill absolute inset-0 opacity-0 sm:static sm:opacity-100"
                       value={a.status}
@@ -88,7 +91,7 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                 </td>
                 <td className="px-2 sm:px-3 py-2 align-top font-medium">
                   <div className="flex items-center gap-2">
-                    <CompanyMark company={a.company} url={a.url} size={22} className="hidden sm:inline-flex" />
+                    <CompanyMark company={a.company} url={a.url} size={26} className="hidden sm:inline-flex" />
                     <div className="truncate max-w-[20vw] sm:max-w-[160px]">{a.company}</div>
                   </div>
                   {error && <div className="text-[11px] text-danger font-normal">{error}</div>}
@@ -116,10 +119,14 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                   {relativeUpdated(a.updatedAt, now)}
                 </td>
                 <td className="px-2 py-2 align-top hidden sm:table-cell">
-                  {reasons.length > 0 && <AttentionDot title={attention} />}
+                  {reasons.length > 0 && (
+                    <span className="badge badge-warn" title={attention}>
+                      <Icon name="clock" size={12} strokeWidth={2} />
+                    </span>
+                  )}
                   {snoozed && (
-                    <span className="text-[10px] font-medium text-muted" title={`Snoozed until ${a.snoozedUntil ?? ""}`}>
-                      zz
+                    <span className="badge badge-muted" title={`Snoozed until ${a.snoozedUntil ?? ""}`}>
+                      <Icon name="moon" size={12} />
                     </span>
                   )}
                 </td>

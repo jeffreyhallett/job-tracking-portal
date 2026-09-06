@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { STATUS_LABELS, type Status } from "../../shared/types";
 import { STATUS_COLOR } from "../lib/status";
 import { copyText } from "../lib/clipboard";
+import { Icon, type IconName } from "./Icon";
 
 export function StatusDot({ status, className = "" }: { status: Status; className?: string }) {
   return (
@@ -18,7 +19,7 @@ export function AttentionDot({ title }: { title: string }) {
   return <span aria-label={title} title={title} className="inline-block w-2 h-2 rounded-full bg-warn shrink-0" />;
 }
 
-export function CopyButton({ text, label = "Copy", className = "" }: { text: string | (() => string); label?: string; className?: string }) {
+export function CopyButton({ text, label = "Copy", icon, className = "" }: { text: string | (() => string); label?: string; icon?: IconName; className?: string }) {
   const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -31,6 +32,7 @@ export function CopyButton({ text, label = "Copy", className = "" }: { text: str
       className={`btn ${className}`}
       onClick={async () => setState((await copyText(typeof text === "function" ? text() : text)) ? "ok" : "fail")}
     >
+      {state === "ok" ? <Icon name="check" size={15} strokeWidth={2.2} /> : icon ? <Icon name={icon} size={15} /> : null}
       {state === "ok" ? "Copied" : state === "fail" ? "Copy failed" : label}
     </button>
   );
@@ -52,20 +54,21 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-4"
-      style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/35 p-0 sm:p-4"
+      style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal
         aria-label={title}
-        className={`bg-panel rounded-t-lg sm:rounded-lg [box-shadow:var(--shadow-pop)] w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col`}
+        className={`bg-bg rounded-t-lg sm:rounded-lg w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col overflow-hidden`}
+        style={{ boxShadow: "var(--shadow-4)" }}
       >
-        <div className="flex items-center justify-between h-12 px-4 border-b border-line shrink-0">
-          <h2 className="font-semibold text-[14px] tracking-[-0.01em]">{title}</h2>
-          <button type="button" className="btn btn-ghost h-7 w-7 px-0 rounded-full text-muted" onClick={onClose} aria-label="Close">
-            <Cross />
+        <div className="flex items-center justify-between h-14 px-5 bg-panel border-b border-line shrink-0">
+          <h2 className="font-semibold text-[16px] tracking-[-0.02em]">{title}</h2>
+          <button type="button" className="btn btn-ghost btn-icon w-8 h-8 text-muted" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} strokeWidth={2} />
           </button>
         </div>
         <div className="overflow-y-auto p-4 flex-1 min-h-0">{children}</div>
