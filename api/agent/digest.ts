@@ -4,7 +4,7 @@ import { daysBetween, parseDate } from "../../shared/dates.js";
 import { computeStats } from "../../shared/stats.js";
 import { CLOSED_STAGES, STATUSES, todayISO, type Application, type Contact, type Status } from "../../shared/types.js";
 import { openDb } from "../_db.js";
-import { route } from "../_http.js";
+import { queryParam, route } from "../_http.js";
 import { getOwnerId, HttpError } from "../_owner.js";
 import { loadAll } from "./_load.js";
 
@@ -94,8 +94,9 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
 }
 
 function intParam(req: VercelRequest, name: string, fallback: number, max: number): number {
-  const raw = req.query[name];
-  const v = Number(Array.isArray(raw) ? raw[0] : raw);
+  const raw = queryParam(req, name);
+  if (raw === undefined) return fallback;
+  const v = Number(raw);
   return Number.isFinite(v) && v >= 0 ? Math.min(v, max) : fallback;
 }
 

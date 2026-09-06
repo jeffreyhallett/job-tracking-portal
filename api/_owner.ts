@@ -1,6 +1,7 @@
 import type { VercelRequest } from "@vercel/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import "./_env.js";
+import { queryParam } from "./_http.js";
 
 /**
  * THE multi-user seam.
@@ -26,9 +27,7 @@ import "./_env.js";
 export function getOwnerId(req: VercelRequest): string {
   const header = req.headers.authorization ?? "";
   const fromHeader = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-  const q = req.query.token;
-  const fromQuery = (Array.isArray(q) ? q[0] : q) ?? "";
-  const token = fromHeader || fromQuery;
+  const token = fromHeader || queryParam(req, "token") || "";
   if (!token) throw new HttpError(401, "Unauthorized");
 
   const agentToken = process.env.AGENT_TOKEN;
