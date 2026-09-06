@@ -22,25 +22,27 @@ export function PasswordGate({ onAuthed }: { onAuthed: () => void }) {
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <form
-        className="w-full max-w-[300px] flex flex-col gap-2"
+        className="card w-full max-w-[320px] p-6 flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        <div className="font-semibold text-sm tracking-tight">Applications</div>
-        <label>
-          <span className="label">Password</span>
-          <input
-            className="input"
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        <button type="submit" className="btn btn-primary justify-center" disabled={!password || busy}>
+        <div>
+          <div className="font-semibold text-[17px] tracking-[-0.02em]">Applications</div>
+          <div className="text-[12px] text-fg-2 mt-0.5">Enter the password to continue.</div>
+        </div>
+        <input
+          className="input"
+          type="password"
+          aria-label="Password"
+          placeholder="Password"
+          autoComplete="current-password"
+          autoFocus
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button type="submit" className="btn btn-primary" disabled={!password || busy}>
           {busy ? "Checking…" : "Continue"}
         </button>
         {error && <div className="text-[12px] text-danger">{error}</div>}

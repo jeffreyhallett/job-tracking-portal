@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
-import { attentionReasons, describeReason } from "../lib/attention";
-import { daysSince, formatDate, formatRelativeDays } from "../lib/dates";
+import { attentionReasons, describeReason } from "../../shared/attention";
+import { daysSince, formatDate, formatRelativeDays } from "../../shared/dates";
 import { STATUS_ORDER } from "../lib/status";
 import { AttentionDot, Caret, StatusDot } from "./ui";
 
@@ -17,7 +17,7 @@ type Props = {
 };
 
 const COLUMNS: { key: SortKey; label: string; className?: string }[] = [
-  { key: "status", label: "Status", className: "w-[112px] sm:w-[140px]" },
+  { key: "status", label: "Status", className: "w-[104px] sm:w-[140px]" },
   { key: "company", label: "Company" },
   { key: "role", label: "Role" },
   { key: "location", label: "Location", className: "hidden md:table-cell" },
@@ -48,12 +48,13 @@ export function TableView({ apps, errors, now, onOpen, onStatus }: Props) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "updatedAt" ? "desc" : "asc" }));
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto">
+    <div className="flex-1 min-h-0 overflow-auto px-2 sm:px-4 pb-3">
+      <div className="card overflow-hidden min-w-max sm:min-w-0">
       <table className="w-full border-collapse text-[13px]">
-        <thead className="sticky top-0 bg-bg z-10">
-          <tr className="text-left text-[11px] uppercase tracking-wide text-muted">
+        <thead className="sticky top-0 bg-panel z-10">
+          <tr className="text-left text-[11px] font-medium text-muted">
             {COLUMNS.map((c) => (
-              <th key={c.key} className={`font-medium px-2 h-7 border-b border-line whitespace-nowrap ${c.className ?? ""}`}>
+              <th key={c.key} className={`font-medium px-2 sm:px-3 h-9 border-b border-line whitespace-nowrap ${c.className ?? ""}`}>
                 <button type="button" className="hover:text-fg" onClick={() => onHeader(c.key)} aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
                   {c.label}
                   <Caret dir={sort.key === c.key ? sort.dir : null} />
@@ -71,18 +72,20 @@ export function TableView({ apps, errors, now, onOpen, onStatus }: Props) {
             return (
               <tr
                 key={a.id}
-                className="border-b border-line hover:bg-hover cursor-pointer"
+                className="border-b border-line last:border-0 hover:bg-hover cursor-pointer transition-colors"
                 onClick={() => onOpen(a.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") onOpen(a.id);
                 }}
                 tabIndex={0}
               >
-                <td className="px-2 py-1 align-top" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-1.5">
+                <td className="px-2 sm:px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                  <div className="relative flex items-center gap-1.5">
                     <StatusDot status={a.status} />
+                    {/* Phone: readable 12px label with the native select laid invisibly on top (16px fonts stop Safari zooming). */}
+                    <span className="sm:hidden text-[12px] font-medium truncate">{STATUS_LABELS[a.status]}</span>
                     <select
-                      className="input h-6 py-0 text-[12px] min-w-[84px] sm:min-w-[104px]"
+                      className="input h-7 py-0 text-[12px] absolute inset-0 opacity-0 sm:static sm:opacity-100 sm:min-w-[110px] bg-transparent"
                       value={a.status}
                       aria-label={`Status for ${a.company}`}
                       onChange={(e) => onStatus(a.id, e.target.value as Status)}
@@ -95,43 +98,44 @@ export function TableView({ apps, errors, now, onOpen, onStatus }: Props) {
                     </select>
                   </div>
                 </td>
-                <td className="px-2 py-1 align-top font-medium">
-                  <div className="truncate max-w-[22vw] sm:max-w-[180px]">{a.company}</div>
+                <td className="px-2 sm:px-3 py-2 align-top font-medium">
+                  <div className="truncate max-w-[20vw] sm:max-w-[180px]">{a.company}</div>
                   {error && <div className="text-[11px] text-danger font-normal">{error}</div>}
                 </td>
-                <td className="px-2 py-1 align-top text-fg-2">
-                  <div className="truncate max-w-[25vw] sm:max-w-[260px]">{a.role}</div>
+                <td className="px-2 sm:px-3 py-2 align-top text-fg-2">
+                  <div className="truncate max-w-[21vw] sm:max-w-[260px]">{a.role}</div>
                   {reasons.length > 0 && <div className="text-[11px] text-warn sm:hidden">{attention}</div>}
                 </td>
-                <td className="px-2 py-1 align-top text-fg-2 hidden md:table-cell">
+                <td className="px-2 sm:px-3 py-2 align-top text-fg-2 hidden md:table-cell">
                   <div className="truncate max-w-[160px]">{a.location ?? ""}</div>
                 </td>
-                <td className="px-2 py-1 align-top text-fg-2 tabular-nums hidden sm:table-cell whitespace-nowrap">{formatDate(a.appliedDate)}</td>
-                <td className={`px-2 py-1 align-top tabular-nums hidden lg:table-cell whitespace-nowrap ${reasons.some((r) => r.kind === "deadline_soon") ? "text-warn" : "text-fg-2"}`}>
+                <td className="px-2 sm:px-3 py-2 align-top text-fg-2 tabular-nums hidden sm:table-cell whitespace-nowrap">{formatDate(a.appliedDate)}</td>
+                <td className={`px-2 sm:px-3 py-2 align-top tabular-nums hidden lg:table-cell whitespace-nowrap ${reasons.some((r) => r.kind === "deadline_soon") ? "text-warn" : "text-fg-2"}`}>
                   {formatDate(a.deadline)}
                 </td>
-                <td className={`px-2 py-1 align-top hidden sm:table-cell ${reasons.some((r) => r.kind === "action_due") ? "text-warn" : "text-fg-2"}`}>
+                <td className={`px-2 sm:px-3 py-2 align-top hidden sm:table-cell ${reasons.some((r) => r.kind === "action_due") ? "text-warn" : "text-fg-2"}`}>
                   <div className="truncate max-w-[150px]">
                     {a.nextActionDate && <span className="tabular-nums mr-1">{formatRelativeDays(a.nextActionDate, now)}</span>}
                     {a.nextAction}
                   </div>
                 </td>
-                <td className={`px-2 py-1 align-top tabular-nums whitespace-nowrap ${reasons.some((r) => r.kind === "stale") ? "text-warn" : "text-fg-2"}`} title={new Date(a.updatedAt).toLocaleString()}>
+                <td className={`px-2 sm:px-3 py-2 align-top tabular-nums whitespace-nowrap ${reasons.some((r) => r.kind === "stale") ? "text-warn" : "text-fg-2"}`} title={new Date(a.updatedAt).toLocaleString()}>
                   {relativeUpdated(a.updatedAt, now)}
                 </td>
-                <td className="px-1 py-1 align-top hidden sm:table-cell">{reasons.length > 0 && <AttentionDot title={attention} />}</td>
+                <td className="px-2 py-2 align-top hidden sm:table-cell">{reasons.length > 0 && <AttentionDot title={attention} />}</td>
               </tr>
             );
           })}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={COLUMNS.length + 1} className="px-2 py-6 text-center text-muted">
+              <td colSpan={COLUMNS.length + 1} className="px-3 py-8 text-center text-muted">
                 Nothing here.
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

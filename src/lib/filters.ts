@@ -1,5 +1,5 @@
 import type { Application, Status } from "../../shared/types";
-import { needsAttention } from "./attention";
+import { needsAttention } from "../../shared/attention";
 
 export type Filters = {
   query: string;

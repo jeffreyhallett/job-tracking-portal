@@ -11,8 +11,8 @@ import {
   type Status,
   type WorkModel,
 } from "../../shared/types";
-import { attentionReasons, describeReason } from "../lib/attention";
-import { formatDate } from "../lib/dates";
+import { attentionReasons, describeReason } from "../../shared/attention";
+import { formatDate } from "../../shared/dates";
 import type { Store } from "../state/store";
 import { Cross, StatusDot } from "./ui";
 
@@ -50,7 +50,7 @@ export function Drawer({ app, store, now, onClose }: Props) {
 
   return (
     <aside
-      className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[420px] z-30 bg-panel sm:border-l border-line shadow-xl flex flex-col"
+      className="fixed inset-0 sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:w-[440px] z-30 bg-panel sm:rounded-lg sm:[box-shadow:var(--shadow-pop)] flex flex-col"
       aria-label={app ? `${app.company} details` : "New application"}
     >
       {app ? <EditForm key={app.id} app={app} store={store} now={now} onClose={onClose} /> : <CreateForm store={store} onClose={onClose} />}
@@ -61,14 +61,14 @@ export function Drawer({ app, store, now, onClose }: Props) {
 function Shell({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
     <>
-      <div className="flex items-center gap-2 h-10 px-3 border-b border-line shrink-0">
-        <div className="font-medium text-sm truncate flex-1 min-w-0">{title}</div>
-        <button type="button" className="btn btn-ghost h-6 px-1.5 text-muted" onClick={onClose} aria-label="Close">
+      <div className="flex items-center gap-2 h-12 px-4 border-b border-line shrink-0">
+        <div className="font-semibold text-[14px] tracking-[-0.01em] truncate flex-1 min-w-0">{title}</div>
+        <button type="button" className="btn btn-ghost h-7 w-7 px-0 rounded-full text-muted" onClick={onClose} aria-label="Close">
           <Cross />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">{children}</div>
-      {footer && <div className="border-t border-line p-2 flex items-center gap-2 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]">{footer}</div>}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">{children}</div>
+      {footer && <div className="border-t border-line px-4 py-3 flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>}
     </>
   );
 }
@@ -133,7 +133,7 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
       {error && <div className="text-[12px] text-danger border border-danger/40 rounded px-2 py-1">{error}</div>}
       {reasons.length > 0 && <div className="text-[12px] text-warn">{reasons.map(describeReason).join(" · ")}</div>}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
         <label className="col-span-2">
           <span className="label">Status</span>
           <select className="input" value={app.status} onChange={(e) => store.setStatus(app.id, e.target.value as Status)}>
@@ -173,7 +173,7 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
 
       <section>
         <div className="label">Timeline</div>
-        <ol className="flex flex-col gap-0.5 text-[12px]">
+        <ol className="flex flex-col gap-1 text-[12px] card p-3">
           {events.map((e, i) => (
             <li key={`${e.date}-${i}`} className="flex gap-2">
               <span className="text-muted tabular-nums w-14 shrink-0">{formatDate(e.date)}</span>
@@ -251,7 +251,7 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
       }
     >
       <form
-        className="grid grid-cols-2 gap-2"
+        className="grid grid-cols-2 gap-x-3 gap-y-3"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();

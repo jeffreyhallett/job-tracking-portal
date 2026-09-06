@@ -10,7 +10,7 @@ import {
   type FieldChange,
   type ImportPlan,
   type PlanSelection,
-} from "../lib/import";
+} from "../../shared/import";
 import type { Store } from "../state/store";
 import { CopyButton, Modal, StatusDot } from "./ui";
 
@@ -49,10 +49,10 @@ export function SyncModal({ apps, store, onClose }: Props) {
   return (
     <Modal title="Sync from Claude" onClose={onClose} wide>
       <div className="flex flex-col gap-3">
-        <details className="rounded border border-line">
-          <summary className="cursor-pointer select-none px-2 h-7 flex items-center text-[12px] text-fg-2 hover:text-fg">Prompt to run in Claude</summary>
-          <div className="px-2 pb-2 flex flex-col gap-2">
-            <pre className="whitespace-pre-wrap font-mono text-[11.5px] leading-[1.45] text-fg-2 bg-bg rounded border border-line p-2 max-h-48 overflow-y-auto">{CLAUDE_PROMPT}</pre>
+        <details className="rounded-md bg-hover">
+          <summary className="cursor-pointer select-none px-3 h-8 flex items-center text-[12px] font-medium text-fg-2 hover:text-fg">Prompt to run in Claude</summary>
+          <div className="px-3 pb-3 flex flex-col gap-2">
+            <pre className="whitespace-pre-wrap font-mono text-[11.5px] leading-[1.45] text-fg-2 bg-panel rounded-sm p-3 max-h-48 overflow-y-auto">{CLAUDE_PROMPT}</pre>
             <div className="flex items-center gap-2 flex-wrap">
               <CopyButton text={CLAUDE_PROMPT} label="Copy prompt" />
               <CopyButton text={() => contextForClaude(apps)} label="Copy context" />
@@ -263,7 +263,7 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
 
       {error && <div className="text-[12px] text-danger border border-danger/40 rounded px-2 py-1">{error}</div>}
 
-      <div className="flex items-center gap-2 sticky bottom-0 bg-panel pt-1">
+      <div className="flex items-center gap-2 sticky bottom-0 bg-panel pt-2">
         <button type="button" className="btn btn-primary" disabled={busy || total === 0} onClick={onApply}>
           {busy ? "Writing…" : `Apply ${total} change${total === 1 ? "" : "s"}`}
         </button>
@@ -278,9 +278,9 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
 
 function Section({ title, children, collapsed = false }: { title: string; children: React.ReactNode; collapsed?: boolean }) {
   return (
-    <details open={!collapsed} className="rounded border border-line">
-      <summary className="cursor-pointer select-none px-2 h-7 flex items-center text-[12px] font-medium">{title}</summary>
-      <div className="px-2 pb-1">{children}</div>
+    <details open={!collapsed} className="rounded-md bg-hover">
+      <summary className="cursor-pointer select-none px-3 h-8 flex items-center text-[12px] font-medium">{title}</summary>
+      <div className="px-3 pb-2">{children}</div>
     </details>
   );
 }

@@ -51,20 +51,24 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-4"
+      style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div
         role="dialog"
         aria-modal
         aria-label={title}
-        className={`bg-panel border border-line rounded-t-lg sm:rounded-lg shadow-xl w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col`}
+        className={`bg-panel rounded-t-lg sm:rounded-lg [box-shadow:var(--shadow-pop)] w-full ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"} max-h-[92dvh] flex flex-col`}
       >
-        <div className="flex items-center justify-between h-10 px-3 border-b border-line shrink-0">
-          <h2 className="font-medium text-sm">{title}</h2>
-          <button type="button" className="btn btn-ghost h-6 px-1.5 text-muted" onClick={onClose} aria-label="Close">
+        <div className="flex items-center justify-between h-12 px-4 border-b border-line shrink-0">
+          <h2 className="font-semibold text-[14px] tracking-[-0.01em]">{title}</h2>
+          <button type="button" className="btn btn-ghost h-7 w-7 px-0 rounded-full text-muted" onClick={onClose} aria-label="Close">
             <Cross />
           </button>
         </div>
-        <div className="overflow-y-auto p-3 flex-1 min-h-0">{children}</div>
+        <div className="overflow-y-auto p-4 flex-1 min-h-0">{children}</div>
       </div>
     </div>
   );

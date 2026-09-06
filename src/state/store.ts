@@ -4,6 +4,8 @@ import { api } from "../api";
 
 export type State = {
   apps: Application[];
+  /** Owner id the API is scoped to, from the list response. */
+  owner?: string;
   loaded: boolean;
   loadError?: string;
   /** Inline, per-row errors from failed background writes. */
@@ -11,7 +13,7 @@ export type State = {
 };
 
 type Action =
-  | { type: "loaded"; apps: Application[] }
+  | { type: "loaded"; apps: Application[]; owner: string }
   | { type: "loadError"; message: string }
   | { type: "upsert"; app: Application }
   | { type: "upsertMany"; apps: Application[] }
@@ -22,7 +24,7 @@ type Action =
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "loaded":
-      return { ...state, apps: action.apps, loaded: true, loadError: undefined };
+      return { ...state, apps: action.apps, owner: action.owner, loaded: true, loadError: undefined };
     case "loadError":
       return { ...state, loaded: true, loadError: action.message };
     case "upsert": {
@@ -80,8 +82,8 @@ export function useApplications() {
     let cancelled = false;
     api
       .list()
-      .then((apps) => {
-        if (!cancelled) dispatch({ type: "loaded", apps });
+      .then(({ apps, owner }) => {
+        if (!cancelled) dispatch({ type: "loaded", apps, owner });
       })
       .catch((e: unknown) => {
         if (!cancelled) dispatch({ type: "loadError", message: e instanceof Error ? e.message : "Failed to load" });

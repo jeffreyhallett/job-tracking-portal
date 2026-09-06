@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node scripts/seed.ts"
+    "db:seed": "node scripts/seed.ts",
+    "db:migrate:prod": "ENV_FILE=.env.production.local drizzle-kit migrate",
+    "db:seed:prod": "ENV_FILE=.env.production.local node scripts/seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

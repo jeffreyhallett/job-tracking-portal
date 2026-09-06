@@ -4,10 +4,13 @@
 //   npm run db:seed
 //
 // Runs on plain Node 22 (type stripping), reads DATABASE_URL and
-// DEFAULT_OWNER_ID from .env.local / .env if present.
+// DEFAULT_OWNER_ID from .env.local / .env if present. The first file that
+// defines a variable wins, so ENV_FILE=.env.production.local targets the
+// production database instead of the Development one.
 import { neon } from "@neondatabase/serverless";
 
-for (const file of [".env.local", ".env"]) {
+for (const file of [process.env.ENV_FILE, ".env.local", ".env"]) {
+  if (!file) continue;
   try {
     process.loadEnvFile(file);
   } catch {
@@ -20,6 +23,17 @@ const ownerId = process.env.DEFAULT_OWNER_ID || "default";
 if (!url) throw new Error("DATABASE_URL is not set");
 
 const sql = neon(url);
+console.log(`database: ${describe(url)}`);
+console.log(`owner:    ${ownerId}${process.env.DEFAULT_OWNER_ID ? "" : " (DEFAULT_OWNER_ID not set, using fallback)"}`);
+
+function describe(connectionString: string): string {
+  try {
+    const u = new URL(connectionString);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return "(unparseable DATABASE_URL)";
+  }
+}
 
 function daysAgo(n: number): string {
   const d = new Date();

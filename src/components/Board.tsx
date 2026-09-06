@@ -1,7 +1,7 @@
 import { useState, type DragEvent } from "react";
 import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
-import { attentionReasons, describeReason } from "../lib/attention";
-import { formatRelativeDays } from "../lib/dates";
+import { attentionReasons, describeReason } from "../../shared/attention";
+import { formatRelativeDays } from "../../shared/dates";
 import { STATUS_COLOR } from "../lib/status";
 import { AttentionDot } from "./ui";
 
@@ -32,7 +32,7 @@ export function Board({ apps, errors, now, onOpen, onMove }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
-      <div className="flex h-full gap-2 p-2 min-w-max">
+      <div className="flex h-full gap-3 px-3 sm:px-4 pb-3 min-w-max">
         {STATUSES.map((status) => {
           const col = byStatus.get(status) ?? [];
           const isOver = over === status;
@@ -40,7 +40,7 @@ export function Board({ apps, errors, now, onOpen, onMove }: Props) {
             <section
               key={status}
               aria-label={STATUS_LABELS[status]}
-              className={`flex flex-col w-[220px] rounded border ${isOver ? "border-accent bg-accent/5" : "border-line bg-bg"} h-full`}
+              className={`flex flex-col w-[236px] rounded-lg h-full transition-colors ${isOver ? "bg-accent/8 ring-2 ring-accent/40" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
@@ -51,12 +51,12 @@ export function Board({ apps, errors, now, onOpen, onMove }: Props) {
               }}
               onDrop={(e) => onDrop(e, status)}
             >
-              <header className="flex items-center gap-1.5 h-7 px-2 shrink-0">
+              <header className="flex items-center gap-2 h-8 px-2 shrink-0">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLOR[status] }} />
-                <span className="text-[12px] font-medium">{STATUS_LABELS[status]}</span>
+                <span className="text-[12px] font-semibold tracking-[-0.01em]">{STATUS_LABELS[status]}</span>
                 <span className="text-[11px] text-muted tabular-nums">{col.length}</span>
               </header>
-              <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-1.5 flex flex-col gap-1">
+              <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 flex flex-col gap-2">
                 {col.map((a) => (
                   <Card
                     key={a.id}
@@ -113,12 +113,12 @@ function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: Car
       }}
       tabIndex={0}
       role="button"
-      className={`group rounded border border-line bg-panel px-2 py-1.5 cursor-grab active:cursor-grabbing hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${dragging ? "opacity-40" : ""} ${error ? "border-danger/60" : ""}`}
+      className={`group card px-3 py-2.5 cursor-grab active:cursor-grabbing hover:[box-shadow:var(--shadow-card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition-[box-shadow,opacity,transform] duration-150 ${dragging ? "opacity-40 scale-[0.98]" : ""} ${error ? "ring-1 ring-danger/60" : ""}`}
     >
       <div className="flex items-start gap-1.5">
         <div className="min-w-0 flex-1">
-          <div className="font-medium truncate leading-tight">{app.company}</div>
-          <div className="text-fg-2 truncate leading-tight text-[12px]">{app.role}</div>
+          <div className="font-semibold truncate leading-tight tracking-[-0.01em]">{app.company}</div>
+          <div className="text-fg-2 truncate leading-tight text-[12px] mt-0.5">{app.role}</div>
         </div>
         {reasons.length > 0 && (
           <div className="pt-1">
@@ -127,7 +127,7 @@ function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: Car
         )}
       </div>
       {(app.location || app.nextActionDate || app.deadline || (app.tags && app.tags.length > 0)) && (
-        <div className="mt-1 flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[11px] text-muted leading-tight">
+        <div className="mt-1.5 flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[11px] text-muted leading-tight">
           {app.location && <span className="truncate max-w-[140px]">{app.location}</span>}
           {app.nextActionDate && !reasons.some((r) => r.kind === "action_due") && <span>next {formatRelativeDays(app.nextActionDate, now)}</span>}
           {!app.nextActionDate && app.deadline && app.status === "interested" && !reasons.some((r) => r.kind === "deadline_soon") && (
@@ -140,8 +140,8 @@ function Card({ app, now, error, dragging, onOpen, onDragStart, onDragEnd }: Car
           ))}
         </div>
       )}
-      {reasons.length > 0 && <div className="mt-1 text-[11px] text-warn leading-tight">{attention}</div>}
-      {error && <div className="mt-1 text-[11px] text-danger leading-tight">{error}</div>}
+      {reasons.length > 0 && <div className="mt-1.5 text-[11px] text-warn font-medium leading-tight">{attention}</div>}
+      {error && <div className="mt-1.5 text-[11px] text-danger leading-tight">{error}</div>}
     </article>
   );
 }

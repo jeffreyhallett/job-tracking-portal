@@ -9,11 +9,11 @@ import { Header } from "./components/Header";
 import { StatsStrip } from "./components/StatsStrip";
 import { SyncModal } from "./components/SyncModal";
 import { TableView } from "./components/TableView";
-import { needsAttention } from "./lib/attention";
+import { needsAttention } from "../shared/attention";
 import { allTags, applyFilters, EMPTY_FILTERS, type Filters } from "./lib/filters";
-import { contextForClaude } from "./lib/import";
+import { contextForClaude } from "../shared/import";
 import { loadView, saveView, type ViewMode } from "./lib/prefs";
-import { computeStats } from "./lib/stats";
+import { computeStats } from "../shared/stats";
 import { useMediaQuery } from "./lib/useMediaQuery";
 import { useApplications } from "./state/store";
 
@@ -30,7 +30,7 @@ export default function App() {
 
 function Tracker() {
   const store = useApplications();
-  const { apps, loaded, loadError, errors } = store.state;
+  const { apps, owner, loaded, loadError, errors } = store.state;
 
   const [view, setView] = useState<ViewMode>(loadView);
   useEffect(() => saveView(view), [view]);
@@ -81,7 +81,7 @@ function Tracker() {
       <StatsStrip stats={stats} shown={filtered.length} total={apps.length} />
       <FilterBar filters={filters} onChange={setFilters} tags={tags} />
 
-      <main className="flex-1 min-h-0 flex flex-col">
+      <main className="flex-1 min-h-0 flex flex-col pt-1">
         {!loaded && <div className="p-4 text-muted text-[12px]">Loading…</div>}
         {loaded && loadError && (
           <div className="p-4 text-[12px]">
@@ -93,7 +93,10 @@ function Tracker() {
         )}
         {loaded && !loadError && apps.length === 0 && (
           <div className="p-6 text-center text-muted text-[12px]">
-            No applications yet. Add one with New, or paste Claude&apos;s JSON into Sync.
+            <div>No applications yet. Add one with New, or paste Claude&apos;s JSON into Sync.</div>
+            <div className="mt-1">
+              Reading as owner <code className="kbd">{owner ?? "unknown"}</code>. If you seeded under a different owner, set DEFAULT_OWNER_ID for this environment.
+            </div>
           </div>
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "board" && (
