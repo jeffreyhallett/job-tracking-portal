@@ -434,9 +434,10 @@ function applyChange(patch: ApplicationPatch, c: FieldChange): void {
 // 6. Export for Claude: the compact skip-list.
 // ---------------------------------------------------------------------------
 
-export function contextForClaude(apps: readonly Application[]): string {
+export function contextForClaude(apps: readonly Application[], withIds = false): string {
   const compact = apps.map((a) => {
-    const o: { company: string; role: string; url?: string; status: Status } = { company: a.company, role: a.role, status: a.status };
+    const o: { id?: string; company: string; role: string; url?: string; status: Status } = { company: a.company, role: a.role, status: a.status };
+    if (withIds) o.id = a.id;
     if (a.url) o.url = a.url;
     return o;
   });

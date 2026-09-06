@@ -46,7 +46,7 @@ Query: `activityDays` (default 7, max 90), `horizonDays` (default 14, max 90).
 
 ### `GET /api/agent/context`
 
-The compact skip-list, identical to the Copy context button: `[{ company, role, url?, status }]`. Paste it into a search prompt so Claude knows what to skip. Contains no notes, compensation, or referral names.
+The compact list: `[{ id, company, role, url?, status }]`. Same as the Copy context button plus ids, so an agent can match an email to a row and then PATCH it. Contains no notes, compensation, or referral names.
 
 ### `GET /api/applications`
 
@@ -81,13 +81,11 @@ Response (201 on write, 200 on dry run):
 
 ### `PATCH /api/applications/:id`
 
-Partial update. Send only the fields to change; `null` clears an optional field. Status changes should include the timeline event, or use the events endpoint below after patching:
+Partial update. Send only the fields to change; `null` clears an optional field. Status must be one of `interested`, `applied`, `oa`, `phone_screen`, `onsite`, `offer`, `rejected`, `ghosted`, `withdrawn`.
 
-```json
-{ "status": "phone_screen", "events": [ …existing events…, { "date": "2026-09-06", "label": "Status: Phone screen" } ] }
-```
+A status change is enough on its own: `{ "status": "phone_screen" }` appends the "Status: Phone screen" timeline entry server-side and, for `applied`, fills `appliedDate` if blank. Do not send `events` from an agent (that replaces the whole array); use the events endpoint below for anything beyond the status line.
 
-Simpler for an agent: `PATCH` with `{ "nextAction": "Send thank-you note", "nextActionDate": "2026-09-08" }` and let the person move status in the UI.
+Other useful patches: `{ "nextAction": "Send thank-you note", "nextActionDate": "2026-09-08" }`, `{ "snoozedUntil": "2026-09-13" }`.
 
 ### `POST /api/applications/:id/events`
 

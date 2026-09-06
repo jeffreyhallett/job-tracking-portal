@@ -5,9 +5,9 @@ import { route } from "../_http.js";
 import { getOwnerId, HttpError } from "../_owner.js";
 import { loadAll } from "./_load.js";
 
-// GET /api/agent/context -> the compact skip-list: [{ company, role, url?, status }]
-// Same payload as the "Copy context" button. No notes, compensation, or
-// referral names.
+// GET /api/agent/context -> [{ id, company, role, url?, status }]
+// The "Copy context" payload plus ids, so an agent can PATCH what it matched.
+// No notes, compensation, or referral names.
 export default route(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -18,7 +18,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   try {
     const apps = await loadAll(db, ownerId);
     res.setHeader("Content-Type", "application/json");
-    res.status(200).send(contextForClaude(apps));
+    res.status(200).send(contextForClaude(apps, true));
   } finally {
     await close();
   }
