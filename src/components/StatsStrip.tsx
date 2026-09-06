@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatDate } from "../../shared/dates";
 import type { Stats, WeekBucket } from "../../shared/stats";
 
@@ -53,6 +54,15 @@ function formatDays(d: number): string {
 /** Applied vs first responses per week, last N weeks. Paired thin bars, hover for values. */
 function FunnelChart({ weeks }: { weeks: WeekBucket[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  // Tooltip is portaled to <body> and positioned below the chart so it can
+  // never end up beneath the sticky header or inside a clipping container.
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const show = (i: number) => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (r) setAnchor({ x: r.left + r.width / 2, y: r.bottom + 8 });
+    setHover(i);
+  };
   const H = 30;
   const barW = 5;
   const gap = 2;
@@ -64,11 +74,11 @@ function FunnelChart({ weeks }: { weeks: WeekBucket[] }) {
   const active = hover === null ? null : weeks[hover];
   return (
     <div className="relative" onMouseLeave={() => setHover(null)}>
-      <svg width={W} height={H + 2} viewBox={`0 0 ${W} ${H + 2}`} role="img" aria-label="Applications and responses per week">
+      <svg ref={svgRef} width={W} height={H + 2} viewBox={`0 0 ${W} ${H + 2}`} role="img" aria-label="Applications and responses per week">
         {weeks.map((w, i) => {
           const x = i * step;
           return (
-            <g key={w.weekStart} onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)}>
+            <g key={w.weekStart} onMouseEnter={() => show(i)} onTouchStart={() => show(i)}>
               <rect x={x - 3} y={0} width={groupW + 7} height={H + 2} fill="transparent" />
               <rect x={x} y={y(w.applied)} width={barW} height={H - y(w.applied) + 1} rx={2} fill="var(--chart-1)" opacity={w.applied === 0 ? 0.22 : 1} />
               <rect x={x + barW + gap} y={y(w.responses)} width={barW} height={H - y(w.responses) + 1} rx={2} fill="var(--chart-2)" opacity={w.responses === 0 ? 0.22 : 1} />
@@ -76,11 +86,17 @@ function FunnelChart({ weeks }: { weeks: WeekBucket[] }) {
           );
         })}
       </svg>
-      {active && (
-        <div className="absolute left-1/2 -translate-x-1/2 -top-9 z-10 pointer-events-none whitespace-nowrap rounded-[8px] bg-inverse text-inverse-fg text-[11px] px-2 py-1 tabular-nums">
-          wk of {formatDate(active.weekStart)}: {active.applied} applied, {active.responses} {active.responses === 1 ? "response" : "responses"}
-        </div>
-      )}
+      {active &&
+        anchor &&
+        createPortal(
+          <div
+            className="fixed z-50 -translate-x-1/2 pointer-events-none whitespace-nowrap rounded-[8px] bg-inverse text-inverse-fg text-[11px] px-2 py-1 tabular-nums"
+            style={{ left: anchor.x, top: anchor.y, boxShadow: "var(--shadow-2)" }}
+          >
+            wk of {formatDate(active.weekStart)}: {active.applied} applied, {active.responses} {active.responses === 1 ? "response" : "responses"}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

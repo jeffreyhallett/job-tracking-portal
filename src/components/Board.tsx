@@ -58,7 +58,8 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
                 <span className="text-[13px] font-semibold tracking-[-0.01em]">{STATUS_LABELS[status]}</span>
                 <span className="ml-auto badge badge-muted tabular-nums">{col.length}</span>
               </header>
-              <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 flex flex-col gap-2">
+              {/* pt/px leave room for the focus ring on the first card; the scroll container would clip it otherwise. */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-1 pb-2 flex flex-col gap-2">
                 {col.map((a) => (
                   <Card
                     key={a.id}
