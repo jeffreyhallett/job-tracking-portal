@@ -64,7 +64,21 @@ npm run db:migrate     # applies drizzle/*.sql to the database in DATABASE_URL
 npm run db:seed        # InstaLILY, Amazon, Google sample rows (idempotent)
 ```
 
-Both read `.env.local` (or `.env`) on their own. Schema changes go in `db/schema.ts`, then `npm run db:generate` writes a new migration to commit.
+Both read `.env.local` (or `.env`) on their own. `drizzle-kit migrate` prints a warning that `@neondatabase/serverless` only connects to remote instances over a websocket; that is expected and not an error. Schema changes go in `db/schema.ts`, then `npm run db:generate` writes a new migration to commit.
+
+#### Which database did that hit?
+
+`vercel env pull .env.local` pulls the **Development** environment. The Neon integration usually gives Development its own Neon branch, so a migrate + seed against `.env.local` populates the dev branch and production stays empty. The seed script prints the host and owner it is about to write to, so you can tell. To set up production:
+
+```sh
+vercel env pull .env.production.local --environment=production
+npm run db:migrate:prod
+npm run db:seed:prod
+```
+
+Those two scripts just set `ENV_FILE=.env.production.local`; the first env file that defines a variable wins.
+
+Also check that `DEFAULT_OWNER_ID` has the same value in every environment where it is set. Rows are scoped by owner, so seeding as `jeffrey` locally and reading as the `default` fallback in production shows an empty list with no error.
 
 ### 4. Run locally
 
