@@ -10,6 +10,7 @@ type Props = {
   viewLocked: boolean;
   onNew: () => void;
   onSync: () => void;
+  onHelp: () => void;
   contextJson: () => string;
 };
 
@@ -49,6 +50,9 @@ export function Header(p: Props) {
         </div>
       )}
 
+      <button type="button" className="btn btn-ghost h-8 w-8 px-0 rounded-full text-muted hidden sm:inline-flex" onClick={p.onHelp} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+        ?
+      </button>
       <CopyButton text={p.contextJson} label="Copy context" className="hidden sm:inline-flex" />
       <button type="button" className="btn" onClick={p.onSync}>
         Sync

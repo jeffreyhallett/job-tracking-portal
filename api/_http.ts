@@ -71,5 +71,7 @@ export function serialize(row: ApplicationRow): Application {
   if (row.nextAction) out.nextAction = row.nextAction;
   if (row.nextActionDate) out.nextActionDate = row.nextActionDate;
   if (row.tags && row.tags.length) out.tags = row.tags;
+  if (row.contacts && row.contacts.length) out.contacts = row.contacts;
+  if (row.snoozedUntil) out.snoozedUntil = row.snoozedUntil;
   return out;
 }

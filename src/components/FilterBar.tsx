@@ -1,10 +1,11 @@
+import type { RefObject } from "react";
 import { STATUSES, STATUS_LABELS, type Status } from "../../shared/types";
 import { EMPTY_FILTERS, isFiltering, type Filters } from "../lib/filters";
 import { StatusDot } from "./ui";
 
-type Props = { filters: Filters; onChange: (f: Filters) => void; tags: string[] };
+type Props = { filters: Filters; onChange: (f: Filters) => void; tags: string[]; searchRef?: RefObject<HTMLInputElement | null> };
 
-export function FilterBar({ filters, onChange, tags }: Props) {
+export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
   const toggleStatus = (s: Status) => {
     const next = new Set(filters.statuses);
     if (next.has(s)) next.delete(s);
@@ -22,6 +23,7 @@ export function FilterBar({ filters, onChange, tags }: Props) {
     <div className="px-3 sm:px-4 pb-2 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <input
+          ref={searchRef}
           type="search"
           className="input search max-w-xs"
           placeholder="Search"

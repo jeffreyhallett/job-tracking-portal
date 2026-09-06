@@ -5,7 +5,7 @@ import {
   type Application,
   type Status,
 } from "./types.js";
-import { daysBetween, parseDate } from "./dates.js";
+import { daysBetween, parseDate, startOfDay, toISODate } from "./dates.js";
 
 export type Stats = {
   active: number;
@@ -42,6 +42,40 @@ function everApplied(app: Application): boolean {
 
 function everResponded(app: Application): boolean {
   return firstResponseOn(app) !== undefined || RESPONSE_STAGES.includes(app.status);
+}
+
+export type WeekBucket = { weekStart: string; applied: number; responses: number };
+
+/** Applications sent and first responses received per week, oldest first. */
+export function weeklyFunnel(apps: readonly Application[], weeks: number, now: Date = new Date()): WeekBucket[] {
+  const start = startOfDay(now);
+  // Weeks start on Monday.
+  const dow = (start.getDay() + 6) % 7;
+  const thisMonday = new Date(start.getFullYear(), start.getMonth(), start.getDate() - dow);
+  const buckets: WeekBucket[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const d = new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 7 * i);
+    buckets.push({ weekStart: toISODate(d), applied: 0, responses: 0 });
+  }
+  const first = parseDate(buckets[0]?.weekStart);
+  if (!first) return buckets;
+  const index = (iso: string | undefined): number => {
+    const d = parseDate(iso);
+    if (!d) return -1;
+    const days = daysBetween(first, d);
+    if (days < 0) return -1;
+    const i = Math.floor(days / 7);
+    return i < buckets.length ? i : -1;
+  };
+  for (const app of apps) {
+    const a = index(appliedOn(app));
+    const b = buckets[a];
+    if (b) b.applied++;
+    const r = index(firstResponseOn(app));
+    const rb = buckets[r];
+    if (rb) rb.responses++;
+  }
+  return buckets;
 }
 
 export function computeStats(apps: readonly Application[]): Stats {

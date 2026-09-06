@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { STATUSES, type ApplicationEvent } from "../shared/types.js";
+import { STATUSES, type ApplicationEvent, type Contact } from "../shared/types.js";
 
 export const applications = pgTable(
   "applications",
@@ -24,6 +24,8 @@ export const applications = pgTable(
     nextActionDate: date("next_action_date", { mode: "string" }),
     tags: text("tags").array().default(sql`'{}'::text[]`),
     events: jsonb("events").$type<ApplicationEvent[]>().default(sql`'[]'::jsonb`),
+    contacts: jsonb("contacts").$type<Contact[]>().default(sql`'[]'::jsonb`),
+    snoozedUntil: date("snoozed_until", { mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow(),
   },

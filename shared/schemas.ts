@@ -9,6 +9,14 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 export const eventSchema = z.object({
   date: isoDate,
   label: z.string().min(1).max(500),
+  details: z.string().max(20000).optional(),
+});
+
+export const contactSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().max(320).optional(),
+  role: z.string().trim().max(100).optional(),
+  lastContact: isoDate.optional(),
 });
 
 const optionalText = z.string().max(2000).optional();
@@ -31,6 +39,8 @@ export const applicationInputSchema = z.object({
   nextActionDate: isoDate.optional(),
   tags: z.array(z.string().trim().min(1).max(60)).max(50).default([]),
   events: z.array(eventSchema).max(500).default([]),
+  contacts: z.array(contactSchema).max(50).default([]),
+  snoozedUntil: isoDate.optional(),
 });
 
 // PATCH bodies: every field optional, and a field explicitly set to null
@@ -53,6 +63,8 @@ export const applicationPatchSchema = z.object({
   nextActionDate: isoDate.optional().nullable(),
   tags: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
   events: z.array(eventSchema).max(500).optional(),
+  contacts: z.array(contactSchema).max(50).optional(),
+  snoozedUntil: isoDate.optional().nullable(),
 });
 
 export const bulkRequestSchema = z.object({
