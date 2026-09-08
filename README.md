@@ -135,6 +135,8 @@ Every row carries `owner_id`, and every handler gets the current owner from `get
 
 **Marking a stage complete.** While a row sits in OA, Phone screen, or Onsite, the drawer offers "Mark <stage> complete" (or `c` on the keyboard) — for when the OA is submitted or the interview has happened and the ball is back in their court. It appends `{ date, label: "Completed: <stage>" }`, shows a green *done* badge on the card and table row, and applies to the stage the row is in now: moving on, or coming back to a stage later, starts it fresh.
 
+**Filters.** Search, the "needs attention" toggle, and the status chips sit above the board or table. Tag chips are folded behind the **Tags** toggle at the end of the status row, so a long tag list only appears when you go looking for it; while it is closed the toggle stays highlighted with the number of tags you have selected.
+
 **Needs attention** is true when any of: status is applied / OA / phone screen / onsite and the row has not been touched in more than 14 days; `nextActionDate` is today or past; status is still Interested and the deadline is within 7 days. The header shows the count and toggles the filter.
 
 **Optimistic writes.** Edits apply immediately and PATCH in the background. On failure the row rolls back and a small inline error appears on the card or table row for a few seconds.
