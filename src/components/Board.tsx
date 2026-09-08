@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention";
+import { stageCompletedOn } from "../../shared/timeline";
 import { CompanyMark } from "./CompanyMark";
 import { Icon } from "./Icon";
 import { formatRelativeDays } from "../../shared/dates";
@@ -105,6 +106,7 @@ function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragE
   const reasons = attentionReasons(app, now);
   const attention = reasons.map(describeReason).join(", ");
   const snoozed = isSnoozed(app, now);
+  const completedOn = stageCompletedOn(app);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: "nearest" });
@@ -160,8 +162,14 @@ function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragE
           ))}
         </div>
       )}
-      {(reasons.length > 0 || snoozed) && (
+      {(reasons.length > 0 || snoozed || completedOn) && (
         <div className="mt-2 flex items-center gap-1 flex-wrap">
+          {completedOn && (
+            <span className="badge badge-ok" title={`${STATUS_LABELS[app.status]} completed ${completedOn}`}>
+              <Icon name="check" size={12} strokeWidth={2} />
+              done
+            </span>
+          )}
           {reasons.length > 0 && (
             <span className="badge badge-warn">
               <Icon name="clock" size={12} strokeWidth={2} />

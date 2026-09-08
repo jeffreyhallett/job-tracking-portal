@@ -8,6 +8,7 @@ export type ShortcutHandlers = {
   open: () => void;
   close: () => void;
   setStatusIndex: (index: number) => void;
+  toggleStageDone: () => void;
   snooze: () => void;
   toggleView: () => void;
   help: () => void;
@@ -20,6 +21,7 @@ export const SHORTCUTS: [string, string][] = [
   ["↵ or o", "Open the selected application"],
   ["esc", "Close panel or clear selection"],
   ["1 – 9", "Set status: Interested, Applied, OA, Phone screen, Onsite, Offer, Rejected, Ghosted, Withdrawn"],
+  ["c", "Mark the current stage (OA, interview) complete"],
   ["s", "Snooze attention for 7 days"],
   ["v", "Switch board / table"],
   ["?", "This list"],
@@ -64,6 +66,10 @@ export function useShortcuts(h: ShortcutHandlers): void {
         case "o":
           e.preventDefault();
           h.open();
+          break;
+        case "c":
+          e.preventDefault();
+          h.toggleStageDone();
           break;
         case "s":
           e.preventDefault();

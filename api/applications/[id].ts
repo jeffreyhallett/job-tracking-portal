@@ -32,6 +32,11 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
         if (patch.status === "applied" && patch.appliedDate === undefined) {
           set.appliedDate = sql`coalesce(${applications.appliedDate}, ${today}::date)`;
         }
+        // Back to Interested walks the apply back, so the row stops counting as
+        // applied (matches statusPatch on the client).
+        if (patch.status === "interested" && patch.appliedDate === undefined) {
+          set.appliedDate = sql`case when ${applications.status} is distinct from ${patch.status} then null else ${applications.appliedDate} end`;
+        }
       }
       const [row] = await db.update(applications).set(set).where(scope).returning();
       if (!row) throw new HttpError(404, "Not found");

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { STATUS_LABELS, statusEventLabel, todayISO, type Application, type ApplicationEvent, type ApplicationInput, type ApplicationPatch, type BulkRequest, type Status } from "../../shared/types";
 import { toISODate } from "../../shared/dates";
+import { isCompletableStage, stageCompletedOn, withStageDone, withoutStageDone } from "../../shared/timeline";
 import { api } from "../api";
 
 export type Toast = { id: number; message: string; undo?: () => void };
@@ -80,6 +81,9 @@ export function statusPatch(app: Application, status: Status): ApplicationPatch 
     events: [...app.events, { date: today, label: statusEventLabel(status) }],
   };
   if (status === "applied" && !app.appliedDate) patch.appliedDate = today;
+  // Back to Interested walks the apply itself back, so the row stops counting
+  // as applied; Undo on the toast restores the date.
+  if (status === "interested") patch.appliedDate = null;
   return patch;
 }
 
@@ -162,6 +166,21 @@ export function useApplications() {
     [state.apps, update, showToast],
   );
 
+  /** Mark the current stage (OA, phone screen, onsite) done, or undo that. */
+  const setStageDone = useCallback(
+    (id: string, done: boolean) => {
+      const app = state.apps.find((a) => a.id === id);
+      if (!app || !isCompletableStage(app)) return;
+      if (done === (stageCompletedOn(app) !== undefined)) return;
+      update(id, { events: done ? withStageDone(app) : withoutStageDone(app) });
+      const stage = STATUS_LABELS[app.status];
+      showToast(done ? `${app.company}: ${stage} marked complete` : `${app.company}: ${stage} no longer complete`, () =>
+        update(id, { events: app.events }),
+      );
+    },
+    [state.apps, update, showToast],
+  );
+
   /** Optimistic delete with an undo window; the DELETE only goes out after it closes. */
   const remove = useCallback(
     (id: string) => {
@@ -237,7 +256,7 @@ export function useApplications() {
     return () => window.removeEventListener("pagehide", flush);
   }, []);
 
-  return { state, update, setStatus, remove, snooze, addEvent, create, bulk, dismissToast };
+  return { state, update, setStatus, setStageDone, remove, snooze, addEvent, create, bulk, dismissToast };
 }
 
 export type Store = ReturnType<typeof useApplications>;

@@ -131,6 +131,10 @@ Every row carries `owner_id`, and every handler gets the current owner from `get
 
 **Status changes log themselves.** Moving a card, changing the status in the table, or picking a status in the drawer appends `{ date, label: "Status: <name>" }` to the row's `events`. Moving to Applied also fills `appliedDate` if it is blank. The stats strip (active, applied, response rate, median days to first response) is derived from those events, not from counters.
 
+**Moving backwards undoes progress.** Dropping a row back to Applied clears the response recorded above it, so a mis-click on OA (or a process that restarted) no longer counts as a response for good; dropping it back to Interested also clears `appliedDate`, so it stops counting as applied. The timeline keeps every entry either way — only what the stats derive from it changes. Undo on the toast puts the row back exactly as it was.
+
+**Marking a stage complete.** While a row sits in OA, Phone screen, or Onsite, the drawer offers "Mark <stage> complete" (or `c` on the keyboard) — for when the OA is submitted or the interview has happened and the ball is back in their court. It appends `{ date, label: "Completed: <stage>" }`, shows a green *done* badge on the card and table row, and applies to the stage the row is in now: moving on, or coming back to a stage later, starts it fresh.
+
 **Needs attention** is true when any of: status is applied / OA / phone screen / onsite and the row has not been touched in more than 14 days; `nextActionDate` is today or past; status is still Interested and the deadline is within 7 days. The header shows the count and toggles the filter.
 
 **Optimistic writes.** Edits apply immediately and PATCH in the background. On failure the row rolls back and a small inline error appears on the card or table row for a few seconds.
@@ -141,7 +145,7 @@ Every row carries `owner_id`, and every handler gets the current owner from `get
 
 **Calendar.** `/api/agent/calendar?token=<AGENT_TOKEN>` is an iCalendar feed of deadlines and next actions; subscribe to it from Google or Apple Calendar.
 
-**Keyboard.** Press `?` in the app for the list: `n` new, `/` search, `j`/`k` move, `↵` open, `1`–`9` set status, `s` snooze a week, `v` switch view.
+**Keyboard.** Press `?` in the app for the list: `n` new, `/` search, `j`/`k` move, `↵` open, `1`–`9` set status, `c` mark the current stage complete, `s` snooze a week, `v` switch view.
 
 **Board on phones.** Below 768px the board collapses to the table automatically; the board/table toggle (stored in `localStorage`) only applies on wider screens.
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention";
+import { stageCompletedOn } from "../../shared/timeline";
 import { daysSince, formatDate, formatRelativeDays } from "../../shared/dates";
 import { sortApps, type Sort, type SortKey } from "../lib/sort";
 import { STATUS_COLOR } from "../lib/status";
@@ -58,6 +59,7 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
             const error = errors[a.id];
             const attention = reasons.map(describeReason).join(", ");
             const snoozed = isSnoozed(a, now);
+            const completedOn = stageCompletedOn(a);
             return (
               <Row
                 key={a.id}
@@ -119,6 +121,11 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                   {relativeUpdated(a.updatedAt, now)}
                 </td>
                 <td className="px-2 py-2 align-top hidden sm:table-cell">
+                  {completedOn && (
+                    <span className="badge badge-ok" title={`${STATUS_LABELS[a.status]} completed ${completedOn}`}>
+                      <Icon name="check" size={12} strokeWidth={2} />
+                    </span>
+                  )}
                   {reasons.length > 0 && (
                     <span className="badge badge-warn" title={attention}>
                       <Icon name="clock" size={12} strokeWidth={2} />

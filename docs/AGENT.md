@@ -61,7 +61,7 @@ An iCalendar feed of deadlines and next actions for every non-closed application
 Body: either a bare JSON array of postings (exactly what the search prompt asks Claude to return) or
 
 ```json
-{ "rows": [ … ], "dryRun": false, "acceptStatus": false }
+{ "rows": [ ... ], "dryRun": false, "acceptStatus": false }
 ```
 
 Runs the same pipeline as the Sync modal: lenient parsing (only `company` and `role` required), dedupe by normalized URL then fuzzy company + role, then a merge that refreshes posting metadata (location, work model, URL, source, deadline, compensation), fills blanks elsewhere, unions tags, and never overwrites `notes`, `status`, or `events`. `acceptStatus: true` applies status changes the import proposes; default off. `dryRun: true` returns the plan and writes nothing. Everything else is written in one transaction.
@@ -83,13 +83,15 @@ Response (201 on write, 200 on dry run):
 
 Partial update. Send only the fields to change; `null` clears an optional field. Status must be one of `interested`, `applied`, `oa`, `phone_screen`, `onsite`, `offer`, `rejected`, `ghosted`, `withdrawn`.
 
-A status change is enough on its own: `{ "status": "phone_screen" }` appends the "Status: Phone screen" timeline entry server-side and, for `applied`, fills `appliedDate` if blank. Do not send `events` from an agent (that replaces the whole array); use the events endpoint below for anything beyond the status line.
+A status change is enough on its own: `{ "status": "phone_screen" }` appends the "Status: Phone screen" timeline entry server-side and, for `applied`, fills `appliedDate` if blank. Moving backwards is treated as a correction: `{ "status": "interested" }` clears `appliedDate`, and the stats stop counting any response logged before the move (they replay the timeline, so a row that briefly touched OA and went back to Applied is not a response). Do not send `events` from an agent (that replaces the whole array); use the events endpoint below for anything beyond the status line.
 
 Other useful patches: `{ "nextAction": "Send thank-you note", "nextActionDate": "2026-09-08" }`, `{ "snoozedUntil": "2026-09-13" }`.
 
 ### `POST /api/applications/:id/events`
 
 Body `{ "label": "Recruiter replied, OA link sent", "date": "2026-09-06" }` (date optional, defaults to today). Appends one timeline event atomically and bumps `updatedAt`, which clears the "stale" flag. Use this to log things the agent learned from email or a calendar.
+
+One label is special: `"Completed: OA"` (also `Completed: Phone screen`, `Completed: Onsite`) marks the stage the row is in as done — the OA was submitted, the interview happened — and shows as a *done* badge in the app. Only send it when the row's current status matches the stage named.
 
 To record who was involved, patch `contacts` on the row: `PATCH /api/applications/:id` with `{ "contacts": [ …existing…, { "name": "…", "email": "…", "role": "Recruiter", "lastContact": "2026-09-06" } ] }`. To mute attention on a row for a while: `{ "snoozedUntil": "2026-09-13" }`.
 

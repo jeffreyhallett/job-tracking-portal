@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUSES, type Status } from "../shared/types";
 import { computeStats, weeklyFunnel } from "../shared/stats";
 import { needsAttention } from "../shared/attention";
+import { stageCompletedOn } from "../shared/timeline";
 import { contextForClaude } from "../shared/import";
 import { getToken, UNAUTHORIZED_EVENT } from "./auth";
 import { Board } from "./components/Board";
@@ -114,6 +115,11 @@ function Tracker() {
         const status = STATUSES[i];
         if (id && status) store.setStatus(id, status);
       },
+      toggleStageDone: () => {
+        const id = target();
+        const app = id ? apps.find((a) => a.id === id) : undefined;
+        if (app) store.setStageDone(app.id, stageCompletedOn(app) === undefined);
+      },
       snooze: () => {
         const id = target();
         if (id) store.snooze(id, 7);
@@ -123,7 +129,7 @@ function Tracker() {
       },
       help: () => setHelpOpen((h) => !h),
     };
-  }, [ordered, focusedId, selectedId, creating, syncOpen, helpOpen, narrow, open, closeDrawer, store]);
+  }, [apps, ordered, focusedId, selectedId, creating, syncOpen, helpOpen, narrow, open, closeDrawer, store]);
   useShortcuts(shortcuts);
 
   return (

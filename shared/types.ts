@@ -36,6 +36,14 @@ export const IN_FLIGHT_STAGES: readonly Status[] = ["applied", "oa", "phone_scre
 /** Terminal stages; everything else counts as active. */
 export const CLOSED_STAGES: readonly Status[] = ["rejected", "ghosted", "withdrawn"];
 
+/** Moving back to one of these walks the application back to square one: a
+ *  response recorded before it no longer counts (the later stage was a
+ *  mis-click, or the process restarted). */
+export const RESET_STAGES: readonly Status[] = ["interested", "applied"];
+
+/** Stages built around something you sit for, so they can be marked done. */
+export const COMPLETABLE_STAGES: readonly Status[] = ["oa", "phone_screen", "onsite"];
+
 export const WORK_MODELS = ["onsite", "hybrid", "remote"] as const;
 export type WorkModel = (typeof WORK_MODELS)[number];
 
@@ -111,6 +119,20 @@ export function statusEventLabel(status: Status): string {
 export function statusFromEventLabel(label: string): Status | undefined {
   if (!label.startsWith(STATUS_EVENT_PREFIX)) return undefined;
   const name = label.slice(STATUS_EVENT_PREFIX.length);
+  return STATUSES.find((s) => STATUS_LABELS[s] === name);
+}
+
+// Finishing what a stage asks of you (the OA is submitted, the interview
+// happened) is recorded the same way, with its own prefix.
+const STAGE_DONE_EVENT_PREFIX = "Completed: ";
+
+export function stageDoneEventLabel(status: Status): string {
+  return `${STAGE_DONE_EVENT_PREFIX}${STATUS_LABELS[status]}`;
+}
+
+export function stageFromDoneEventLabel(label: string): Status | undefined {
+  if (!label.startsWith(STAGE_DONE_EVENT_PREFIX)) return undefined;
+  const name = label.slice(STAGE_DONE_EVENT_PREFIX.length);
   return STATUSES.find((s) => STATUS_LABELS[s] === name);
 }
 

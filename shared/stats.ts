@@ -5,6 +5,7 @@ import {
   type Application,
   type Status,
 } from "./types.js";
+import { chronological } from "./timeline.js";
 import { daysBetween, parseDate, startOfDay, toISODate } from "./dates.js";
 
 export type Stats = {
@@ -19,21 +20,44 @@ export type Stats = {
 
 const APPLIED_OR_LATER: readonly Status[] = ["applied", ...RESPONSE_STAGES];
 
-/** Date the app entered `applied`, from the events timeline (fallback: appliedDate). */
-export function appliedOn(app: Application): string | undefined {
-  const sorted = [...app.events].sort((a, b) => a.date.localeCompare(b.date));
-  const ev = sorted.find((e) => statusFromEventLabel(e.label) === "applied");
-  return ev?.date ?? app.appliedDate;
+type Progress = { applied?: string; response?: string };
+
+/**
+ * Replay the status timeline and keep the dates that still stand.
+ *
+ * A move back to a reset stage undoes what came after it: dropping to `applied`
+ * clears a response recorded above it (the OA or interview was a mis-click, or
+ * the process restarted), and dropping to `interested` clears the apply too.
+ * Without this, an app that briefly touched OA counted as a response forever.
+ */
+function progress(app: Application): Progress {
+  let applied: string | undefined;
+  let response: string | undefined;
+  for (const e of chronological(app.events)) {
+    const s = statusFromEventLabel(e.label);
+    if (s === undefined) continue;
+    if (s === "interested") {
+      applied = undefined;
+      response = undefined;
+    } else if (s === "applied") {
+      // Keep the original apply date; re-applying does not restart the clock.
+      applied ??= e.date;
+      response = undefined;
+    } else if (RESPONSE_STAGES.includes(s)) {
+      response ??= e.date;
+    }
+  }
+  return { applied, response };
 }
 
-/** Date of the first event that moved the app into a response stage. */
+/** Date the app entered `applied`, from the events timeline (fallback: appliedDate). */
+export function appliedOn(app: Application): string | undefined {
+  return progress(app).applied ?? app.appliedDate;
+}
+
+/** Date the company first responded, ignoring responses a later demotion undid. */
 export function firstResponseOn(app: Application): string | undefined {
-  const sorted = [...app.events].sort((a, b) => a.date.localeCompare(b.date));
-  const ev = sorted.find((e) => {
-    const s = statusFromEventLabel(e.label);
-    return s !== undefined && RESPONSE_STAGES.includes(s);
-  });
-  return ev?.date;
+  return progress(app).response;
 }
 
 function everApplied(app: Application): boolean {

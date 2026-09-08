@@ -13,6 +13,7 @@ import {
   type WorkModel,
 } from "../../shared/types";
 import { describeReason, isSnoozed, rawAttentionReasons } from "../../shared/attention";
+import { isCompletableStage, stageCompletedOn } from "../../shared/timeline";
 import { formatDate, formatRelativeDays } from "../../shared/dates";
 import { STATUS_COLOR } from "../lib/status";
 import type { Store } from "../state/store";
@@ -90,6 +91,8 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
   const reasons = rawAttentionReasons(app, now);
   const snoozed = isSnoozed(app, now);
   const error = store.state.errors[app.id];
+  const completable = isCompletableStage(app);
+  const completedOn = stageCompletedOn(app);
 
   const commitText = (key: TextKey, raw: string) => {
     const value = raw.trim();
@@ -177,6 +180,27 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               </select>
             </div>
           </label>
+          {completable && (
+            <div className="col-span-2 -mt-1 flex items-center gap-2 flex-wrap">
+              {completedOn ? (
+                <>
+                  <span className="badge badge-ok">
+                    <Icon name="check" size={12} strokeWidth={2} />
+                    {STATUS_LABELS[app.status]} completed {formatDate(completedOn)}
+                  </span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => store.setStageDone(app.id, false)}>
+                    <Icon name="undo" size={13} />
+                    Not yet
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="btn btn-soft btn-sm" onClick={() => store.setStageDone(app.id, true)}>
+                  <Icon name="check" size={14} strokeWidth={2} />
+                  Mark {STATUS_LABELS[app.status]} complete
+                </button>
+              )}
+            </div>
+          )}
           <Text label="Next action" value={app.nextAction} onCommit={(v) => commitText("nextAction", v)} placeholder="Follow up with recruiter" />
           <Text label="Next action date" value={app.nextActionDate} onCommit={(v) => commitText("nextActionDate", v)} type="date" />
           <Text label="Applied on" value={app.appliedDate} onCommit={(v) => commitText("appliedDate", v)} type="date" />
