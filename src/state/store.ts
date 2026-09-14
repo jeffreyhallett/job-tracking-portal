@@ -223,9 +223,9 @@ export function useApplications() {
       if (!app || (!app.nextAction && !app.nextActionDate)) return;
       const what = app.nextAction?.trim();
       update(id, {
-        // "Done: " rather than "Completed: ", which is reserved for the marker
-        // that says a stage has been sat.
-        events: [...app.events, { date: todayISO(), label: what ? `Done: ${what}` : "Next action done" }],
+        // Marked as a note, and "Done: " rather than "Completed: ", which is the
+        // prefix reserved for the marker that says a stage has been sat.
+        events: [...app.events, { date: todayISO(), label: what ? `Done: ${what}` : "Next action done", kind: "note" }],
         nextAction: null,
         nextActionDate: null,
       });
@@ -250,12 +250,16 @@ export function useApplications() {
     [update],
   );
 
-  /** Append a manual timeline entry (interview notes, prep, a call). */
+  /**
+   * Append a manual timeline entry (interview notes, prep, a call). Marked as a
+   * note, so a line that happens to read like "Status: Onsite" is never replayed
+   * as a real stage change.
+   */
   const addEvent = useCallback(
     (id: string, event: ApplicationEvent) => {
       const app = state.apps.find((a) => a.id === id);
       if (!app) return;
-      update(id, { events: [...app.events, event] });
+      update(id, { events: [...app.events, { ...event, kind: "note" }] });
     },
     [state.apps, update],
   );
