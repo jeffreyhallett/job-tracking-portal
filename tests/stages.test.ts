@@ -14,7 +14,7 @@ import {
   suggestColor,
   type Stage,
 } from "../shared/stages.js";
-import { retargetEvents } from "../shared/timeline.js";
+import { classifyEventLabel, retargetEvents } from "../shared/timeline.js";
 import { eventDisplayLabel, stageDoneEvent, statusEvent, statusFromEvent, type ApplicationEvent } from "../shared/types.js";
 
 const defaults = resolveStages(undefined);
@@ -279,5 +279,60 @@ describe("table columns", () => {
     const columns = visibleColumns(resolveColumns({ columns: [{ key: "status", hidden: true }, { key: "company", hidden: true }] }));
     assert.ok(columns.some((c) => c.key === "status"));
     assert.ok(columns.some((c) => c.key === "company"));
+  });
+});
+
+// The events endpoint takes a bare label. Classifying it on the way in is what
+// stops a note from being replayed as a stage change later.
+describe("classifying a supplied timeline label", () => {
+  const stages = resolveStages(DEFAULT_STAGES);
+  const renamed = resolveStages(DEFAULT_STAGES.map((s) => (s.id === "oa" ? { ...s, label: "Take-home" } : s)));
+
+  it("recognises the stage-completed marker", () => {
+    assert.deepEqual(classifyEventLabel("Completed: Phone screen", stages), { kind: "stage_done", status: "phone_screen" });
+  });
+
+  it("matches the marker against the user's own stage names", () => {
+    assert.deepEqual(classifyEventLabel("Completed: Take-home", renamed), { kind: "stage_done", status: "oa" });
+    assert.deepEqual(classifyEventLabel("Completed: OA", renamed), { kind: "note" }, "the old name is no longer what this stage is called");
+  });
+
+  it("recognises a label that claims a stage change", () => {
+    assert.deepEqual(classifyEventLabel("Status: Onsite", stages), { kind: "status", status: "onsite" });
+  });
+
+  it("treats anything else as prose, including near-misses on the prefixes", () => {
+    for (const label of [
+      "Recruiter replied, OA link sent",
+      "Status: unclear, recruiter went quiet",
+      "Completed: the take-home, took 4 hours",
+      "Done: emailed Sarah",
+      "status: onsite",
+      "Completed:",
+      "Onsite",
+    ]) {
+      assert.deepEqual(classifyEventLabel(label, stages), { kind: "note" }, label);
+    }
+  });
+
+  it("tolerates whitespace around the stage name", () => {
+    assert.deepEqual(classifyEventLabel("Completed:   Onsite  ", stages), { kind: "stage_done", status: "onsite" });
+  });
+});
+
+describe("a note is never replayed as a stage change", () => {
+  const stages = resolveStages(DEFAULT_STAGES);
+
+  it("is ignored by both readers even when its label reads like a marker", () => {
+    for (const label of ["Status: Onsite", "Completed: Onsite", "Recruiter replied"]) {
+      const note: ApplicationEvent = { date: "2026-09-01", label, kind: "note" };
+      assert.equal(statusFromEvent(note, stages), undefined, label);
+      assert.equal(eventDisplayLabel(note, stages), label, "and still reads as written");
+    }
+  });
+
+  it("unlike the same label stored without a kind, which is read from its text", () => {
+    const legacy: ApplicationEvent = { date: "2026-09-01", label: "Status: Onsite" };
+    assert.equal(statusFromEvent(legacy, stages), "onsite", "this is the behaviour marking notes protects against");
   });
 });

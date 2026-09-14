@@ -72,3 +72,31 @@ export function retargetEvents(events: readonly ApplicationEvent[], from: string
     return event;
   });
 }
+
+/**
+ * What a caller-supplied timeline label actually is.
+ *
+ * The events endpoint takes a bare label, and two prefixes are meaningful:
+ * "Completed: <stage>" is how a stage is marked as sat, and "Status: <stage>" is
+ * the shape the app writes when a stage changes. Everything else is prose.
+ *
+ * Classifying on the way in means the stored entry says what it is, rather than
+ * being re-guessed from its text every time the timeline is replayed — so a note
+ * that happens to read like a marker cannot quietly become one.
+ */
+export type EventLabelKind = { kind: "note" } | { kind: "stage_done"; status: string } | { kind: "status"; status: string };
+
+export function classifyEventLabel(label: string, stages: StageSet): EventLabelKind {
+  for (const [prefix, kind] of [
+    ["Completed: ", "stage_done"],
+    ["Status: ", "status"],
+  ] as const) {
+    if (!label.startsWith(prefix)) continue;
+    const name = label.slice(prefix.length).trim();
+    // Only an exact stage name counts. "Status: unclear, recruiter went quiet"
+    // is prose, and stays prose.
+    const stage = stages.all.find((s) => s.label === name);
+    if (stage) return { kind, status: stage.id };
+  }
+  return { kind: "note" };
+}

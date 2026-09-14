@@ -34,7 +34,13 @@ export type ApplicationEvent = {
   details?: string;
   /** The stage this entry is about, for `kind` "status" and "stage_done". */
   status?: Status;
-  kind?: "status" | "stage_done";
+  /**
+   * What kind of entry this is. "note" is prose — an interview note, something a
+   * recruiter said — and is deliberately marked so the label is never parsed as a
+   * stage marker, however it happens to read. Absent on entries written before
+   * events carried ids, which fall back to reading the label.
+   */
+  kind?: "status" | "stage_done" | "note";
 };
 
 export type Contact = {

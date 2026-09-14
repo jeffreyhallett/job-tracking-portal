@@ -24,7 +24,7 @@ export const eventSchema = z.object({
   label: z.string().min(1).max(500),
   details: z.string().max(20000).optional(),
   status: statusId.optional(),
-  kind: z.enum(["status", "stage_done"]).optional(),
+  kind: z.enum(["status", "stage_done", "note"]).optional(),
 });
 
 export const contactSchema = z.object({

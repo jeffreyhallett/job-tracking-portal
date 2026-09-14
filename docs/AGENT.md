@@ -134,9 +134,15 @@ Other useful patches: `{ "nextAction": "Send thank-you note", "nextActionDate": 
 
 ### `POST /api/applications/:id/events`
 
-Body `{ "label": "Recruiter replied, OA link sent", "date": "2026-09-06" }` (date optional, defaults to today). Appends one timeline event atomically and bumps `updatedAt`, which clears the "stale" flag. Use this to log things the agent learned from email or a calendar.
+Body `{ "label": "Recruiter replied, OA link sent", "date": "2026-09-06", "details": "…" }` (date defaults to today; details is optional free text). Appends one timeline event atomically and bumps `updatedAt`, which clears the "stale" flag. Use this to log things the agent learned from email or a calendar.
 
-To mark the stage a row is in as done — the assessment was submitted, the interview happened — send `"Completed: <the stage's label>"`. It shows as a *done* badge in the app. Only stages the account marked as completable accept it (by default, any stage whose phase is `active`), and only when the row's current stage is the one named.
+The label is classified against that account's own stage names before it is stored, so the entry records what it is:
+
+- **`"Completed: <the stage's label>"`** marks the stage a row is in as done — the assessment was submitted, the interview happened — and shows as a *done* badge in the app. Send it only when the row's current stage is the one named, and only for a stage that can be completed (by default, any stage whose phase is `active`).
+- **Anything else** is stored as a note. You do not have to avoid any particular wording: a note is marked as one, so a label that happens to read like a marker is never replayed as a stage change. Write plainly.
+- **`"Status: <the stage's label>"`** is refused with a 400. This endpoint appends to the timeline; it does not move the row, so that label would record a change that never happened. Use `PATCH /api/applications/:id` with the stage id instead — it writes the timeline entry itself.
+
+Why the distinction matters: the stats replay the timeline to decide what counts as an application sent and a response received. An entry that says which stage it is about is unambiguous; one that has to be read back from its text is not.
 
 To record who was involved, patch `contacts` on the row: `PATCH /api/applications/:id` with `{ "contacts": [ …existing…, { "name": "…", "email": "…", "role": "Recruiter", "lastContact": "2026-09-06" } ] }`. To mute attention on a row for a while: `{ "snoozedUntil": "2026-09-13" }`.
 
