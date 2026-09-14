@@ -1,9 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { bulkRequestSchema } from "../../shared/schemas.js";
 import { applyBulk } from "../_apply.js";
 import { openDb } from "../_db.js";
 import { parseBody, route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { HttpError, requireUser } from "../_owner.js";
 
 // POST /api/applications/bulk -> apply a sync merge in ONE transaction.
 // The client computes the merge (creates + per-row patches) and previews it;
@@ -13,11 +14,11 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "POST");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const body = parseBody(req, bulkRequestSchema);
   const { db, close } = openDb();
   try {
-    res.status(200).json(await applyBulk(db, ownerId, body));
+    const user = await requireUser(req, res, db);
+    res.status(200).json(await applyBulk(db, user.id, body, resolveUserStages(user.prefs)));
   } finally {
     await close();
   }

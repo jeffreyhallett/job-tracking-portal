@@ -1,10 +1,5 @@
-import {
-  CLOSED_STAGES,
-  RESPONSE_STAGES,
-  statusFromEventLabel,
-  type Application,
-  type Status,
-} from "./types.js";
+import { statusFromEvent, type Application } from "./types.js";
+import type { StageSet } from "./stages.js";
 import { chronological } from "./timeline.js";
 import { daysBetween, parseDate, startOfDay, toISODate } from "./dates.js";
 
@@ -18,60 +13,59 @@ export type Stats = {
   medianDaysToResponse: number | null;
 };
 
-const APPLIED_OR_LATER: readonly Status[] = ["applied", ...RESPONSE_STAGES];
-
 type Progress = { applied?: string; response?: string };
 
 /**
  * Replay the status timeline and keep the dates that still stand.
  *
- * A move back to a reset stage undoes what came after it: dropping to `applied`
- * clears a response recorded above it (the OA or interview was a mis-click, or
- * the process restarted), and dropping to `interested` clears the apply too.
- * Without this, an app that briefly touched OA counted as a response forever.
+ * A move back to an earlier phase undoes what came after it: dropping to a
+ * "waiting" stage clears a response recorded above it (the interview was a
+ * mis-click, or the process restarted), and dropping to a "lead" stage clears
+ * the apply too. Without this, an app that briefly touched a later stage counted
+ * as a response forever.
  */
-function progress(app: Application): Progress {
+function progress(app: Application, stages: StageSet): Progress {
   let applied: string | undefined;
   let response: string | undefined;
   for (const e of chronological(app.events)) {
-    const s = statusFromEventLabel(e.label);
+    const s = statusFromEvent(e, stages);
     if (s === undefined) continue;
-    if (s === "interested") {
+    if (stages.isLead(s)) {
       applied = undefined;
       response = undefined;
-    } else if (s === "applied") {
+    } else if (stages.isWaiting(s)) {
       // Keep the original apply date; re-applying does not restart the clock.
       applied ??= e.date;
       response = undefined;
-    } else if (RESPONSE_STAGES.includes(s)) {
+    } else if (stages.isResponse(s)) {
       response ??= e.date;
     }
   }
   return { applied, response };
 }
 
-/** Date the app entered `applied`, from the events timeline (fallback: appliedDate). */
-export function appliedOn(app: Application): string | undefined {
-  return progress(app).applied ?? app.appliedDate;
+/** Date the app was sent, from the events timeline (fallback: appliedDate). */
+export function appliedOn(app: Application, stages: StageSet): string | undefined {
+  return progress(app, stages).applied ?? app.appliedDate;
 }
 
 /** Date the company first responded, ignoring responses a later demotion undid. */
-export function firstResponseOn(app: Application): string | undefined {
-  return progress(app).response;
+export function firstResponseOn(app: Application, stages: StageSet): string | undefined {
+  return progress(app, stages).response;
 }
 
-function everApplied(app: Application): boolean {
-  return appliedOn(app) !== undefined || APPLIED_OR_LATER.includes(app.status);
+function everApplied(app: Application, stages: StageSet): boolean {
+  return appliedOn(app, stages) !== undefined || stages.impliesApplied(app.status);
 }
 
-function everResponded(app: Application): boolean {
-  return firstResponseOn(app) !== undefined || RESPONSE_STAGES.includes(app.status);
+function everResponded(app: Application, stages: StageSet): boolean {
+  return firstResponseOn(app, stages) !== undefined || stages.isResponse(app.status);
 }
 
 export type WeekBucket = { weekStart: string; applied: number; responses: number };
 
 /** Applications sent and first responses received per week, oldest first. */
-export function weeklyFunnel(apps: readonly Application[], weeks: number, now: Date = new Date()): WeekBucket[] {
+export function weeklyFunnel(apps: readonly Application[], stages: StageSet, weeks: number, now: Date = new Date()): WeekBucket[] {
   const start = startOfDay(now);
   // Weeks start on Monday.
   const dow = (start.getDay() + 6) % 7;
@@ -92,25 +86,25 @@ export function weeklyFunnel(apps: readonly Application[], weeks: number, now: D
     return i < buckets.length ? i : -1;
   };
   for (const app of apps) {
-    const a = index(appliedOn(app));
+    const a = index(appliedOn(app, stages));
     const b = buckets[a];
     if (b) b.applied++;
-    const r = index(firstResponseOn(app));
+    const r = index(firstResponseOn(app, stages));
     const rb = buckets[r];
     if (rb) rb.responses++;
   }
   return buckets;
 }
 
-export function computeStats(apps: readonly Application[]): Stats {
-  const active = apps.filter((a) => !CLOSED_STAGES.includes(a.status)).length;
-  const appliedApps = apps.filter(everApplied);
-  const respondedApps = appliedApps.filter(everResponded);
+export function computeStats(apps: readonly Application[], stages: StageSet): Stats {
+  const active = apps.filter((a) => !stages.isClosed(a.status)).length;
+  const appliedApps = apps.filter((a) => everApplied(a, stages));
+  const respondedApps = appliedApps.filter((a) => everResponded(a, stages));
 
   const durations: number[] = [];
   for (const app of respondedApps) {
-    const a = parseDate(appliedOn(app));
-    const r = parseDate(firstResponseOn(app));
+    const a = parseDate(appliedOn(app, stages));
+    const r = parseDate(firstResponseOn(app, stages));
     if (a && r) durations.push(Math.max(0, daysBetween(a, r)));
   }
   durations.sort((x, y) => x - y);

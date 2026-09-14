@@ -1,16 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { STATUS_LABELS, type Status } from "../../shared/types";
-import { STATUS_COLOR } from "../lib/status";
+import type { Status } from "../../shared/types";
+import { useStages } from "../lib/session";
 import { copyText } from "../lib/clipboard";
 import { Icon, type IconName } from "./Icon";
 
 export function StatusDot({ status, className = "" }: { status: Status; className?: string }) {
+  const stages = useStages();
   return (
     <span
       aria-hidden
       className={`inline-block w-2 h-2 rounded-full shrink-0 ${className}`}
-      style={{ backgroundColor: STATUS_COLOR[status] }}
-      title={STATUS_LABELS[status]}
+      style={{ backgroundColor: stages.color(status) }}
+      title={stages.label(status)}
     />
   );
 }

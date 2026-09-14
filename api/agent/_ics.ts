@@ -1,4 +1,5 @@
-import { CLOSED_STAGES, type Application } from "../../shared/types.js";
+import type { StageSet } from "../../shared/stages.js";
+import type { Application } from "../../shared/types.js";
 
 function esc(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
@@ -26,10 +27,10 @@ function nextDay(iso: string): string {
 type Item = { uid: string; date: string; summary: string; description: string; url?: string };
 
 /** All-day events for deadlines and next actions on non-closed applications. */
-export function buildCalendar(apps: readonly Application[], stamp: Date): string {
+export function buildCalendar(apps: readonly Application[], stages: StageSet, stamp: Date): string {
   const items: Item[] = [];
   for (const a of apps) {
-    if (CLOSED_STAGES.includes(a.status)) continue;
+    if (stages.isClosed(a.status)) continue;
     const who = `${a.company} — ${a.role}`;
     if (a.deadline) items.push({ uid: `${a.id}-deadline`, date: a.deadline, summary: `Deadline: ${who}`, description: a.notes ?? "", url: a.url });
     if (a.nextActionDate) items.push({ uid: `${a.id}-next`, date: a.nextActionDate, summary: `${a.nextAction ?? "Next action"}: ${who}`, description: a.notes ?? "", url: a.url });

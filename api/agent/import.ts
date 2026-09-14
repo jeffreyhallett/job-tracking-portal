@@ -1,10 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { buildBulkRequest, defaultSelection, parsePaste, planImport, type ImportPlan } from "../../shared/import.js";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { applyBulk } from "../_apply.js";
 import { openDb } from "../_db.js";
 import { parseBody, route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { HttpError, requireUser } from "../_owner.js";
 import { loadAll } from "./_load.js";
 
 // Accepts either a bare JSON array (exactly what the Sync prompt asks Claude
@@ -37,7 +38,6 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "POST");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const body = parseBody(req, bodySchema);
   const rows = Array.isArray(body) ? body : body.rows;
   const dryRun = Array.isArray(body) ? false : body.dryRun;
@@ -45,10 +45,13 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
 
   const { db, close } = openDb();
   try {
+    const user = await requireUser(req, res, db);
+    const ownerId = user.id;
+    const stages = resolveUserStages(user.prefs);
     const existing = await loadAll(db, ownerId);
     const parsed = parsePaste(JSON.stringify(rows));
     if (parsed.fatal) throw new HttpError(400, parsed.fatal);
-    const plan = planImport(parsed, existing);
+    const plan = planImport(parsed, existing, stages);
     const sel = defaultSelection(plan);
     if (acceptStatus) for (const u of plan.updates) if (u.statusChange) sel.acceptStatus.add(u.existing.id);
 
@@ -74,7 +77,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     };
 
     if (!dryRun) {
-      const result = await applyBulk(db, ownerId, buildBulkRequest(plan, sel));
+      const result = await applyBulk(db, ownerId, buildBulkRequest(plan, sel, stages), stages);
       summary.created = result.created.map((a) => ({ id: a.id, company: a.company, role: a.role }));
     }
     res.status(dryRun ? 200 : 201).json(summary);

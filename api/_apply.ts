@@ -1,8 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
 import { applications } from "../db/schema.js";
+import type { StageSet } from "../shared/stages.js";
 import type { BulkRequest, BulkResponse } from "../shared/types.js";
 import type { Db } from "./_db.js";
-import { serialize } from "./_http.js";
+import { assertStage, serialize } from "./_http.js";
 import { HttpError } from "./_owner.js";
 
 /**
@@ -10,14 +11,17 @@ import { HttpError } from "./_owner.js";
  * bulk endpoint (client-computed plan) and the agent import endpoint
  * (server-computed plan). Any failure rolls the whole batch back.
  */
-export async function applyBulk(db: Db, ownerId: string, body: BulkRequest): Promise<BulkResponse> {
+export async function applyBulk(db: Db, ownerId: string, body: BulkRequest, stages: StageSet): Promise<BulkResponse> {
+  for (const c of body.creates) assertStage(stages, c.status);
+  for (const u of body.updates) assertStage(stages, u.patch.status);
+
   return db.transaction(async (tx): Promise<BulkResponse> => {
     const created =
       body.creates.length === 0
         ? []
         : await tx
             .insert(applications)
-            .values(body.creates.map((c) => ({ ...c, ownerId })))
+            .values(body.creates.map((c) => ({ ...c, status: c.status ?? stages.initial().id, ownerId })))
             .returning();
 
     const updated = [];

@@ -1,4 +1,8 @@
-// UI-only preferences. Real data never lives here.
+// Device-local view state. Real data and anything that should follow the user
+// across devices (lane names, table columns) lives on the account instead; see
+// shared/prefs.ts and src/lib/session.tsx.
+
+import { DEFAULT_SORT, SORT_KEYS, type Sort, type SortKey } from "./sort";
 
 export type ViewMode = "board" | "table";
 
@@ -21,10 +25,7 @@ export function saveView(view: ViewMode): void {
   }
 }
 
-import { DEFAULT_SORT, type Sort, type SortKey } from "./sort";
-
 const SORT_KEY = "jobtracker.sort";
-const SORT_KEYS: SortKey[] = ["company", "role", "status", "location", "appliedDate", "deadline", "nextActionDate", "updatedAt"];
 
 export function loadSort(): Sort {
   try {

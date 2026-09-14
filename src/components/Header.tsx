@@ -1,3 +1,4 @@
+import { useSession } from "../lib/session";
 import type { ViewMode } from "../lib/prefs";
 import { Icon } from "./Icon";
 import { CopyButton } from "./ui";
@@ -14,11 +15,16 @@ type Props = {
   onNew: () => void;
   onSync: () => void;
   onHelp: () => void;
+  onSettings: () => void;
   contextJson: () => string;
 };
 
 export function Header(p: Props) {
-  const subtitle = [`${p.total} tracked`, `${p.active} active`].join(" · ");
+  const { user } = useSession();
+  // Who is signed in leads the subtitle: on a shared instance that is the first
+  // thing worth being sure about.
+  const who = user.name ?? user.email;
+  const subtitle = [who, `${p.total} tracked`, `${p.active} active`].join(" · ");
   return (
     <header
       className="sticky top-0 z-20 border-b border-line"
@@ -30,7 +36,9 @@ export function Header(p: Props) {
         </span>
         <div className="min-w-0">
           <h1 className="font-semibold text-[17px] sm:text-[20px] leading-6 tracking-[-0.025em] truncate">Applications</h1>
-          <div className="text-[12px] text-fg-2 leading-4 truncate">{subtitle}</div>
+          <div className="text-[12px] text-fg-2 leading-4 truncate" title={user.email}>
+            {subtitle}
+          </div>
         </div>
 
         <button
@@ -63,6 +71,9 @@ export function Header(p: Props) {
           <Icon name="keyboard" size={18} />
         </button>
         <CopyButton text={p.contextJson} label="Copy context" icon="copy" className="hidden md:inline-flex" />
+        <button type="button" className="btn btn-ghost btn-icon" onClick={p.onSettings} aria-label="Settings" title="Lanes, columns, account, automations">
+          <Icon name="settings" size={18} />
+        </button>
         <button type="button" className="btn btn-tonal" onClick={p.onSync}>
           <Icon name="sync" size={16} strokeWidth={2} />
           Sync

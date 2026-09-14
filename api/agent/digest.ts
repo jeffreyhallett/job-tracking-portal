@@ -2,17 +2,42 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention.js";
 import { daysBetween, parseDate } from "../../shared/dates.js";
 import { computeStats } from "../../shared/stats.js";
-import { CLOSED_STAGES, STATUSES, todayISO, type Application, type Contact, type Status } from "../../shared/types.js";
+import { resolveUserStages } from "../../shared/prefs.js";
+import type { StagePhase, StageSet } from "../../shared/stages.js";
+import { todayISO, type Application, type Contact, type Status } from "../../shared/types.js";
 import { openDb } from "../_db.js";
+import { HttpError } from "../_error.js";
 import { queryParam, route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { requireUser, type AuthUser } from "../_owner.js";
 import { loadAll } from "./_load.js";
 
 type Ref = { id: string; company: string; role: string; status: Status; url?: string };
 
+/**
+ * One stage of this user's pipeline. `phase` is what the stage *means*, so an
+ * automation can reason about an unfamiliar pipeline: "active" is in progress
+ * with the company, "closed" is over. See docs/AGENT.md.
+ */
+export type DigestStage = { id: Status; label: string; phase: StagePhase; hidden?: boolean };
+
+export type DigestUser = {
+  id: string;
+  email: string;
+  name?: string;
+  /**
+   * This person's pipeline, in their order. Everyone's is different — they
+   * choose their own stages — so read this rather than assuming the defaults.
+   */
+  stages: DigestStage[];
+  /** id -> label, for convenience. Use these words when writing to them. */
+  statusLabels: Record<Status, string>;
+};
+
 export type Digest = {
   generatedAt: string;
   today: string;
+  /** Whose tracker this is. Every number below is scoped to them alone. */
+  user: DigestUser;
   counts: { total: number; active: number; needsAttention: number; snoozed: number };
   pipeline: Record<Status, number>;
   stats: ReturnType<typeof computeStats>;
@@ -30,13 +55,13 @@ function ref(a: Application): Ref {
   return r;
 }
 
-export function buildDigest(apps: Application[], now: Date, activityDays: number, horizonDays: number): Digest {
+export function buildDigest(apps: Application[], user: AuthUser, stages: StageSet, now: Date, activityDays: number, horizonDays: number): Digest {
   const today = todayISO();
-  const pipeline = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<Status, number>;
-  for (const a of apps) pipeline[a.status]++;
+  const pipeline: Record<Status, number> = Object.fromEntries(stages.ids.map((id) => [id, 0]));
+  for (const a of apps) pipeline[a.status] = (pipeline[a.status] ?? 0) + 1;
 
   const needsAttention = apps
-    .map((a) => ({ a, reasons: attentionReasons(a, now) }))
+    .map((a) => ({ a, reasons: attentionReasons(a, stages, now) }))
     .filter((x) => x.reasons.length > 0)
     .map(({ a, reasons }) => ({
       ...ref(a),
@@ -53,7 +78,7 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
   const upcomingDeadlines = apps
     .flatMap((a) => {
       const d = parseDate(a.deadline);
-      if (!d || CLOSED_STAGES.includes(a.status) || !a.deadline) return [];
+      if (!d || stages.isClosed(a.status) || !a.deadline) return [];
       const daysUntil = daysBetween(now, d);
       return daysUntil >= 0 && daysUntil <= horizonDays ? [{ ...ref(a), deadline: a.deadline, daysUntil }] : [];
     })
@@ -82,14 +107,25 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
   return {
     generatedAt: now.toISOString(),
     today,
-    counts: { total: apps.length, active: apps.filter((a) => !CLOSED_STAGES.includes(a.status)).length, needsAttention: needsAttention.length, snoozed: snoozed.length },
+    user: digestUser(user, stages),
+    counts: { total: apps.length, active: apps.filter((a) => !stages.isClosed(a.status)).length, needsAttention: needsAttention.length, snoozed: snoozed.length },
     pipeline,
-    stats: computeStats(apps),
+    stats: computeStats(apps, stages),
     needsAttention,
     snoozed,
     upcomingDeadlines,
     nextActions,
     recentActivity,
+  };
+}
+
+function digestUser(user: AuthUser, stages: StageSet): DigestUser {
+  return {
+    id: user.id,
+    email: user.email,
+    ...(user.name ? { name: user.name } : {}),
+    stages: stages.all.map((s) => ({ id: s.id, label: s.label, phase: s.phase, ...(s.hidden ? { hidden: true } : {}) })),
+    statusLabels: stages.labels(),
   };
 }
 
@@ -109,13 +145,13 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "GET");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const activityDays = intParam(req, "activityDays", 7, 90);
   const horizonDays = intParam(req, "horizonDays", 14, 90);
   const { db, close } = openDb();
   try {
-    const apps = await loadAll(db, ownerId);
-    res.status(200).json(buildDigest(apps, new Date(), activityDays, horizonDays));
+    const user = await requireUser(req, res, db);
+    const apps = await loadAll(db, user.id);
+    res.status(200).json(buildDigest(apps, user, resolveUserStages(user.prefs), new Date(), activityDays, horizonDays));
   } finally {
     await close();
   }

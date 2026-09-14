@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATUSES, type Status } from "../shared/types";
-import { computeStats, weeklyFunnel } from "../shared/stats";
 import { needsAttention } from "../shared/attention";
-import { stageCompletedOn } from "../shared/timeline";
 import { contextForClaude } from "../shared/import";
-import { getToken, UNAUTHORIZED_EVENT } from "./auth";
+import { computeStats, weeklyFunnel } from "../shared/stats";
+import { stageCompletedOn } from "../shared/timeline";
+import type { Status } from "../shared/types";
+import type { PublicUser } from "../shared/user";
+import { api } from "./api";
+import { getToken, signOut as forgetDevice, UNAUTHORIZED_EVENT } from "./auth";
 import { Board } from "./components/Board";
-import { Icon } from "./components/Icon";
 import { Drawer } from "./components/Drawer";
 import { FilterBar } from "./components/FilterBar";
 import { Header } from "./components/Header";
-import { PasswordGate } from "./components/PasswordGate";
+import { Icon } from "./components/Icon";
+import { Settings } from "./components/Settings";
+import { SetPassword, SignIn } from "./components/SignIn";
 import { ShortcutsHelp } from "./components/ShortcutsHelp";
 import { StatsStrip } from "./components/StatsStrip";
 import { SyncModal } from "./components/SyncModal";
@@ -18,23 +21,61 @@ import { TableView } from "./components/TableView";
 import { Toast } from "./components/Toast";
 import { allTags, applyFilters, EMPTY_FILTERS, type Filters } from "./lib/filters";
 import { loadSort, loadView, saveSort, saveView, type ViewMode } from "./lib/prefs";
+import { SessionProvider, useSession } from "./lib/session";
 import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
 import { boardOrder, sortApps, type Sort } from "./lib/sort";
 import { useMediaQuery } from "./lib/useMediaQuery";
 import { useApplications } from "./state/store";
 
+/**
+ * A stored token says which device is signed in but not who; GET /api/me
+ * resolves that on boot, and is also how a revoked or expired token is noticed
+ * before the UI renders.
+ */
+type Boot = { phase: "checking" } | { phase: "anon" } | { phase: "signed"; user: PublicUser };
+
 export default function App() {
-  const [authed, setAuthed] = useState(() => getToken() !== null);
+  const [boot, setBoot] = useState<Boot>(() => (getToken() ? { phase: "checking" } : { phase: "anon" }));
+
   useEffect(() => {
-    const onUnauthorized = () => setAuthed(false);
+    if (boot.phase !== "checking") return;
+    let cancelled = false;
+    api
+      .me()
+      .then((user) => {
+        if (!cancelled) setBoot({ phase: "signed", user });
+      })
+      .catch(() => {
+        // A 401 already cleared the token through the api client.
+        if (!cancelled) setBoot({ phase: "anon" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boot.phase]);
+
+  useEffect(() => {
+    const onUnauthorized = () => setBoot({ phase: "anon" });
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
-  if (!authed) return <PasswordGate onAuthed={() => setAuthed(true)} />;
-  return <Tracker />;
+
+  const setUser = useCallback((user: PublicUser) => setBoot({ phase: "signed", user }), []);
+  const signOut = useCallback(() => forgetDevice(), []);
+
+  if (boot.phase === "checking") return <div className="flex-1 flex items-center justify-center text-muted text-[12px]">Loading…</div>;
+  if (boot.phase === "anon") return <SignIn onSignedIn={setUser} />;
+  if (boot.user.mustChangePassword) return <SetPassword user={boot.user} onDone={setUser} />;
+
+  return (
+    <SessionProvider user={boot.user} onUser={setUser} onSignOut={signOut}>
+      <Tracker />
+    </SessionProvider>
+  );
 }
 
 function Tracker() {
+  const { user, stages } = useSession();
   const store = useApplications();
   const { apps, owner, loaded, loadError, errors, toast } = store.state;
 
@@ -51,6 +92,7 @@ function Tracker() {
   const [creating, setCreating] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // One clock per render pass; re-tick every minute so "today" rolls over.
@@ -60,11 +102,14 @@ function Tracker() {
     return () => window.clearInterval(t);
   }, []);
 
-  const attentionCount = useMemo(() => apps.filter((a) => needsAttention(a, now)).length, [apps, now]);
-  const filtered = useMemo(() => applyFilters(apps, filters, now), [apps, filters, now]);
-  const ordered = useMemo(() => (effectiveView === "board" ? boardOrder(filtered) : sortApps(filtered, sort)), [filtered, effectiveView, sort]);
-  const stats = useMemo(() => computeStats(apps), [apps]);
-  const weeks = useMemo(() => weeklyFunnel(apps, 8, now), [apps, now]);
+  const attentionCount = useMemo(() => apps.filter((a) => needsAttention(a, stages, now)).length, [apps, stages, now]);
+  const filtered = useMemo(() => applyFilters(apps, filters, stages, now), [apps, filters, stages, now]);
+  const ordered = useMemo(
+    () => (effectiveView === "board" ? boardOrder(filtered, stages) : sortApps(filtered, sort, stages)),
+    [filtered, effectiveView, sort, stages],
+  );
+  const stats = useMemo(() => computeStats(apps, stages), [apps, stages]);
+  const weeks = useMemo(() => weeklyFunnel(apps, stages, 8, now), [apps, stages, now]);
   const tags = useMemo(() => allTags(apps), [apps]);
   const selected = selectedId ? (apps.find((a) => a.id === selectedId) ?? null) : null;
 
@@ -74,6 +119,8 @@ function Tracker() {
   }, []);
   const closeSync = useCallback(() => setSyncOpen(false), []);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
   const onMove = useCallback((id: string, status: Status) => store.setStatus(id, status), [store]);
   const open = useCallback((id: string) => {
     setFocusedId(id);
@@ -105,20 +152,26 @@ function Tracker() {
         if (id) open(id);
       },
       close: () => {
-        if (syncOpen) setSyncOpen(false);
+        if (settingsOpen) setSettingsOpen(false);
+        else if (syncOpen) setSyncOpen(false);
         else if (helpOpen) setHelpOpen(false);
         else if (selectedId || creating) closeDrawer();
         else setFocusedId(null);
       },
+      // 1..9 follow the stages the user sees, in their order.
       setStatusIndex: (i) => {
         const id = target();
-        const status = STATUSES[i];
+        const status = stages.visible[i]?.id;
         if (id && status) store.setStatus(id, status);
       },
       toggleStageDone: () => {
         const id = target();
         const app = id ? apps.find((a) => a.id === id) : undefined;
-        if (app) store.setStageDone(app.id, stageCompletedOn(app) === undefined);
+        if (app) store.setStageDone(app.id, stageCompletedOn(app, stages) === undefined);
+      },
+      completeNextAction: () => {
+        const id = target();
+        if (id) store.completeNextAction(id);
       },
       snooze: () => {
         const id = target();
@@ -129,7 +182,7 @@ function Tracker() {
       },
       help: () => setHelpOpen((h) => !h),
     };
-  }, [apps, ordered, focusedId, selectedId, creating, syncOpen, helpOpen, narrow, open, closeDrawer, store]);
+  }, [apps, ordered, focusedId, selectedId, creating, syncOpen, helpOpen, settingsOpen, narrow, open, closeDrawer, store, stages]);
   useShortcuts(shortcuts);
 
   return (
@@ -149,6 +202,7 @@ function Tracker() {
         }}
         onSync={() => setSyncOpen(true)}
         onHelp={() => setHelpOpen(true)}
+        onSettings={openSettings}
         contextJson={() => contextForClaude(apps)}
       />
       <StatsStrip stats={stats} weeks={weeks} shown={filtered.length} total={apps.length} />
@@ -160,7 +214,7 @@ function Tracker() {
           <div className="p-4 text-[12px]">
             <div className="text-danger">Could not load applications: {loadError}</div>
             <div className="text-muted mt-1">
-              Is the API running? Locally that means <code className="kbd">vercel dev</code> alongside <code className="kbd">npm run dev</code>, with DATABASE_URL and APP_PASSWORD set.
+              Is the API running? Locally that means <code className="kbd">vercel dev</code> alongside <code className="kbd">npm run dev</code>, with DATABASE_URL set.
             </div>
           </div>
         )}
@@ -172,19 +226,19 @@ function Tracker() {
             <div className="font-medium text-fg">No applications yet</div>
             <div>Add one with New, or paste Claude&apos;s JSON into Sync.</div>
             <div className="text-[12px] text-muted">
-              Reading as owner <code className="kbd">{owner ?? "unknown"}</code>. If you seeded under a different owner, set DEFAULT_OWNER_ID for this environment.
+              Signed in as <code className="kbd">{owner ?? user.email}</code>. Each account sees only its own applications.
             </div>
           </div>
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "board" && (
-          <Board apps={filtered} errors={errors} now={now} focusedId={focusedId} onOpen={open} onMove={onMove} />
+          <Board apps={filtered} errors={errors} now={now} focusedId={focusedId} onOpen={open} onMove={onMove} onEditStages={openSettings} />
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "table" && (
           <TableView apps={filtered} errors={errors} now={now} sort={sort} onSort={setSort} focusedId={focusedId} onOpen={open} onStatus={onMove} />
         )}
       </main>
 
-      {narrow && !(selected || creating) && !syncOpen && (
+      {narrow && !(selected || creating) && !syncOpen && !settingsOpen && (
         <button
           type="button"
           className="fab"
@@ -199,6 +253,7 @@ function Tracker() {
       )}
       {(selected || creating) && <Drawer app={creating ? null : selected} store={store} now={now} onClose={closeDrawer} />}
       {syncOpen && <SyncModal apps={apps} store={store} onClose={closeSync} />}
+      {settingsOpen && <Settings apps={apps} onReload={() => void store.reload()} onClose={closeSettings} />}
       {helpOpen && <ShortcutsHelp onClose={closeHelp} />}
       <Toast toast={toast} onDismiss={store.dismissToast} />
     </>

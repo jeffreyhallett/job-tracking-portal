@@ -9,23 +9,32 @@ export type ShortcutHandlers = {
   close: () => void;
   setStatusIndex: (index: number) => void;
   toggleStageDone: () => void;
+  completeNextAction: () => void;
   snooze: () => void;
   toggleView: () => void;
   help: () => void;
 };
 
-export const SHORTCUTS: [string, string][] = [
-  ["n", "New application"],
-  ["/", "Search"],
-  ["j / k", "Next / previous application"],
-  ["↵ or o", "Open the selected application"],
-  ["esc", "Close panel or clear selection"],
-  ["1 – 9", "Set status: Interested, Applied, OA, Phone screen, Onsite, Offer, Rejected, Ghosted, Withdrawn"],
-  ["c", "Mark the current stage (OA, interview) complete"],
-  ["s", "Snooze attention for 7 days"],
-  ["v", "Switch board / table"],
-  ["?", "This list"],
-];
+/**
+ * The help sheet. `laneNames` are the user's own lane names in board order, so
+ * the number keys are documented as what they will actually do.
+ */
+export function shortcutList(laneNames: readonly string[]): [string, string][] {
+  const numbered = laneNames.slice(0, 9);
+  return [
+    ["n", "New application"],
+    ["/", "Search"],
+    ["j / k", "Next / previous application"],
+    ["↵ or o", "Open the selected application"],
+    ["esc", "Close panel or clear selection"],
+    [numbered.length > 1 ? `1 – ${numbered.length}` : "1", `Set status: ${numbered.join(", ")}`],
+    ["c", "Mark the current stage (assessment, interview) complete"],
+    ["d", "Next action done: log it and clear the reminder"],
+    ["s", "Snooze attention for 7 days"],
+    ["v", "Switch board / table"],
+    ["?", "This list"],
+  ];
+}
 
 function inEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -70,6 +79,10 @@ export function useShortcuts(h: ShortcutHandlers): void {
         case "c":
           e.preventDefault();
           h.toggleStageDone();
+          break;
+        case "d":
+          e.preventDefault();
+          h.completeNextAction();
           break;
         case "s":
           e.preventDefault();

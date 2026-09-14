@@ -1,15 +1,30 @@
 import { z } from "zod";
-import { STATUSES, WORK_MODELS } from "./types.js";
+import { TABLE_COLUMNS } from "./prefs.js";
+import { MAX_STAGE_ID, MAX_STAGE_LABEL, MAX_STAGES } from "./stages.js";
+import { WORK_MODELS } from "./types.js";
 
 // Strict schemas used by the API handlers to validate request bodies.
-// (The lenient import schema lives client-side in src/lib/import.ts.)
+// (The lenient import schema lives in shared/import.ts.)
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
+
+/**
+ * A stage id. Only the *shape* is checked here: which ids are real depends on
+ * the caller's own pipeline, so the handlers check membership once they know
+ * whose request it is (assertStage in api/_http.ts).
+ */
+const statusId = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(new RegExp(`^[a-z0-9][a-z0-9_]{0,${MAX_STAGE_ID - 1}}$`), "not a valid stage id");
 
 export const eventSchema = z.object({
   date: isoDate,
   label: z.string().min(1).max(500),
   details: z.string().max(20000).optional(),
+  status: statusId.optional(),
+  kind: z.enum(["status", "stage_done"]).optional(),
 });
 
 export const contactSchema = z.object({
@@ -28,7 +43,8 @@ export const applicationInputSchema = z.object({
   workModel: z.enum(WORK_MODELS).optional(),
   url: z.string().max(2000).optional(),
   source: optionalText,
-  status: z.enum(STATUSES).default("interested"),
+  // Omitted means "wherever this pipeline starts"; the handler fills it in.
+  status: statusId.optional(),
   appliedDate: isoDate.optional(),
   deadline: isoDate.optional(),
   compensation: optionalText,
@@ -52,7 +68,7 @@ export const applicationPatchSchema = z.object({
   workModel: z.enum(WORK_MODELS).optional().nullable(),
   url: z.string().max(2000).optional().nullable(),
   source: optionalText.nullable(),
-  status: z.enum(STATUSES).optional(),
+  status: statusId.optional(),
   appliedDate: isoDate.optional().nullable(),
   deadline: isoDate.optional().nullable(),
   compensation: optionalText.nullable(),
@@ -83,3 +99,66 @@ export const bulkRequestSchema = z.object({
 
 export type ApplicationInputParsed = z.infer<typeof applicationInputSchema>;
 export type ApplicationPatchParsed = z.infer<typeof applicationPatchSchema>;
+export type BulkRequestParsed = z.infer<typeof bulkRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Preferences
+// ---------------------------------------------------------------------------
+
+/**
+ * One stage. Deliberately loose on the value ranges: sanitizeStages() in
+ * shared/stages.ts is the canonicaliser, and stagesProblem() produces the
+ * message the user sees. This only bounds the payload.
+ */
+export const stageSchema = z.object({
+  id: z.string().max(MAX_STAGE_ID + 10),
+  label: z.string().max(MAX_STAGE_LABEL + 20),
+  color: z.string().max(32),
+  phase: z.string().max(20),
+  hidden: z.boolean().optional(),
+  completable: z.boolean().optional(),
+});
+
+export const userPrefsSchema = z.object({
+  stages: z.array(stageSchema).max(MAX_STAGES + 8).optional(),
+  columns: z
+    .array(
+      z.object({
+        key: z.string().max(40),
+        hidden: z.boolean().optional(),
+      }),
+    )
+    .max(TABLE_COLUMNS.length * 2)
+    .optional(),
+});
+
+export const profilePatchSchema = z.object({
+  name: z.string().trim().max(120).nullable().optional(),
+  prefs: userPrefsSchema.optional(),
+  /**
+   * Stages being removed, and where their applications should go. Applied in the
+   * same transaction as the new pipeline, so deleting a stage can never leave
+   * rows pointing at something that no longer exists.
+   */
+  reassignStages: z
+    .array(z.object({ from: statusId, to: statusId }))
+    .max(MAX_STAGES)
+    .optional(),
+});
+
+/**
+ * POST /api/me carries an `action` instead of being split into one Vercel
+ * function per verb; the deployment has a function budget and these are rare,
+ * small, and all guarded the same way.
+ */
+export const accountActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("changePassword"),
+    // Absent when the account is still on the temporary password an admin set.
+    currentPassword: z.string().min(1).max(200).optional(),
+    newPassword: z.string().min(1).max(200),
+  }),
+  z.object({ action: z.literal("rotateAgentToken") }),
+  z.object({ action: z.literal("revokeAgentToken") }),
+  z.object({ action: z.literal("resetPrefs") }),
+]);

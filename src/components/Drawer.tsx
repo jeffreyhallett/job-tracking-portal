@@ -1,9 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  STATUSES,
-  STATUS_LABELS,
   WORK_MODELS,
-  statusEventLabel,
+  statusEvent,
   todayISO,
   type Application,
   type ApplicationInput,
@@ -15,7 +13,9 @@ import {
 import { describeReason, isSnoozed, rawAttentionReasons } from "../../shared/attention";
 import { isCompletableStage, stageCompletedOn } from "../../shared/timeline";
 import { formatDate, formatRelativeDays } from "../../shared/dates";
-import { STATUS_COLOR } from "../lib/status";
+import { eventDisplayLabel } from "../../shared/types";
+import { useStages } from "../lib/session";
+import { stageOptions } from "./TableView";
 import type { Store } from "../state/store";
 import { CompanyMark } from "./CompanyMark";
 import { Icon, type IconName } from "./Icon";
@@ -88,11 +88,15 @@ function Section({ title, icon, children, aside }: { title: string; icon: IconNa
 // ------------------------------------------------------------------ edit
 
 function EditForm({ app, store, now, onClose }: { app: Application; store: Store; now: Date; onClose: () => void }) {
-  const reasons = rawAttentionReasons(app, now);
+  const stages = useStages();
+  // A row parked in a hidden or removed stage still offers it, so its own value
+  // can be read back and is not silently rewritten on the next change.
+  const options = stageOptions(stages, app.status);
+  const reasons = rawAttentionReasons(app, stages, now);
   const snoozed = isSnoozed(app, now);
   const error = store.state.errors[app.id];
-  const completable = isCompletableStage(app);
-  const completedOn = stageCompletedOn(app);
+  const completable = isCompletableStage(app, stages);
+  const completedOn = stageCompletedOn(app, stages);
 
   const commitText = (key: TextKey, raw: string) => {
     const value = raw.trim();
@@ -128,8 +132,8 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
             <span className="block truncate font-semibold text-[17px] tracking-[-0.02em] leading-tight">{app.company}</span>
             <span className="block text-fg-2 text-[13px] truncate mt-0.5">{app.role}</span>
             <span className="flex items-center gap-2 mt-1.5">
-              <span className="pill" style={{ ["--sc" as string]: STATUS_COLOR[app.status] }}>
-                {STATUS_LABELS[app.status]}
+              <span className="pill" style={{ ["--sc" as string]: stages.color(app.status) }}>
+                {stages.label(app.status)}
               </span>
               {app.url && (
                 <a href={app.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] text-accent font-medium">
@@ -168,13 +172,13 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
             <div className="flex items-center gap-2">
               <select
                 className="pill flex-1 h-8 text-[13px]"
-                style={{ ["--sc" as string]: STATUS_COLOR[app.status] }}
+                style={{ ["--sc" as string]: stages.color(app.status) }}
                 value={app.status}
                 onChange={(e) => store.setStatus(app.id, e.target.value as Status)}
               >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABELS[s]}
+                {options.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.label}
                   </option>
                 ))}
               </select>
@@ -186,7 +190,7 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
                 <>
                   <span className="badge badge-ok">
                     <Icon name="check" size={12} strokeWidth={2} />
-                    {STATUS_LABELS[app.status]} completed {formatDate(completedOn)}
+                    {stages.label(app.status)} completed {formatDate(completedOn)}
                   </span>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => store.setStageDone(app.id, false)}>
                     <Icon name="undo" size={13} />
@@ -196,12 +200,35 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               ) : (
                 <button type="button" className="btn btn-soft btn-sm" onClick={() => store.setStageDone(app.id, true)}>
                   <Icon name="check" size={14} strokeWidth={2} />
-                  Mark {STATUS_LABELS[app.status]} complete
+                  Mark {stages.label(app.status)} complete
                 </button>
               )}
             </div>
           )}
-          <Text label="Next action" value={app.nextAction} onCommit={(v) => commitText("nextAction", v)} placeholder="Follow up with recruiter" />
+          <Text
+            label="Next action"
+            value={app.nextAction}
+            onCommit={(v) => commitText("nextAction", v)}
+            placeholder="Follow up with recruiter"
+            trailing={
+              app.nextAction || app.nextActionDate ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm h-5 px-1.5 font-medium"
+                  style={{ color: "var(--c-accent)" }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    store.completeNextAction(app.id);
+                  }}
+                  title="Log it on the timeline and clear the reminder"
+                >
+                  <Icon name="check" size={12} strokeWidth={2.4} />
+                  Done
+                </button>
+              ) : undefined
+            }
+          />
           <Text label="Next action date" value={app.nextActionDate} onCommit={(v) => commitText("nextActionDate", v)} type="date" />
           <Text label="Applied on" value={app.appliedDate} onCommit={(v) => commitText("appliedDate", v)} type="date" />
           <Text label="Deadline" value={app.deadline} onCommit={(v) => commitText("deadline", v)} type="date" />
@@ -225,6 +252,12 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
                   <Icon name="clock" size={12} strokeWidth={2} />
                   {reasons.map(describeReason).join(" · ")}
                 </span>
+                {reasons.some((r) => r.kind === "action_due") && (
+                  <button type="button" className="btn btn-soft btn-sm" onClick={() => store.completeNextAction(app.id)}>
+                    <Icon name="check" size={14} strokeWidth={2} />
+                    Action done
+                  </button>
+                )}
                 <span className="text-muted ml-auto">Snooze</span>
                 {[
                   [3, "3d"],
@@ -343,6 +376,7 @@ function clean(c: Contact): Contact {
 // ------------------------------------------------------------ timeline
 
 function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string; label: string; details?: string }) => void }) {
+  const stages = useStages();
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -390,7 +424,7 @@ function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string;
           <li key={`${e.date}-${e.i}`} className="grid grid-cols-[56px_1fr] gap-2 py-1.5 border-b border-line last:border-0 text-[12px]">
             <span className="text-muted tabular-nums">{formatDate(e.date)}</span>
             <div className="min-w-0">
-              <div className="text-fg">{e.label}</div>
+              <div className="text-fg">{eventDisplayLabel(e, stages)}</div>
               {e.details && <div className="text-fg-2 whitespace-pre-wrap mt-0.5">{e.details}</div>}
             </div>
           </li>
@@ -407,12 +441,13 @@ function Timeline({ app, onAdd }: { app: Application; onAdd: (e: { date: string;
 // ---------------------------------------------------------------- create
 
 function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
+  const stages = useStages();
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("");
   const [url, setUrl] = useState("");
   const [source, setSource] = useState("");
-  const [status, setStatus] = useState<Status>("interested");
+  const [status, setStatus] = useState<Status>(() => stages.initial().id);
   const [deadline, setDeadline] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
@@ -431,7 +466,7 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
       role: role.trim(),
       status,
       tags: parseTags(tags),
-      events: [{ date: today, label: statusEventLabel(status) }],
+      events: [statusEvent(status, today, stages)],
     };
     if (location.trim()) input.location = location.trim();
     if (url.trim()) input.url = url.trim();
@@ -482,9 +517,9 @@ function CreateForm({ store, onClose }: { store: Store; onClose: () => void }) {
         <label>
           <span className="label">Status</span>
           <select className="input" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
+            {stages.visible.map((stage) => (
+              <option key={stage.id} value={stage.id}>
+                {stage.label}
               </option>
             ))}
           </select>

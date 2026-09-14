@@ -1,5 +1,15 @@
-// Device-level "remember me": the bearer token from POST /api/auth lives in
-// localStorage. Clearing site data or changing APP_PASSWORD signs out.
+// Device-level "remember me": the session token from POST /api/auth lives in
+// localStorage, so a sign-in survives closing the tab and restarting the
+// browser. It is per device and per browser profile.
+//
+// The window slides: the API reissues an ageing token on any authenticated
+// response (X-Session-Token) and src/api.ts stores it, so a device in regular use
+// never expires. Only one left idle for SESSION_MAX_AGE_DAYS (90) is signed out.
+//
+// Otherwise it stops working when the account's password changes (the hash is the
+// signing key), AUTH_SECRET changes, or the user clears site data. Nothing else —
+// deploys and migrations do not touch it. A 401 from any call drops it and shows
+// the sign-in screen.
 
 const TOKEN_KEY = "jobtracker.token";
 export const UNAUTHORIZED_EVENT = "jobtracker:unauthorized";

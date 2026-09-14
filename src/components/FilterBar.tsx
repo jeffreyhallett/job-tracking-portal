@@ -1,6 +1,7 @@
 import { useState, type RefObject } from "react";
-import { STATUSES, STATUS_LABELS, type Status } from "../../shared/types";
+import type { Status } from "../../shared/types";
 import { EMPTY_FILTERS, isFiltering, type Filters } from "../lib/filters";
+import { useStages } from "../lib/session";
 import { Icon } from "./Icon";
 import { StatusDot } from "./ui";
 
@@ -9,6 +10,11 @@ type Props = { filters: Filters; onChange: (f: Filters) => void; tags: string[];
 const TAG_LIST_ID = "tag-filters";
 
 export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
+  // Filtering offers the stages the user kept, in their order. A hidden stage is
+  // still offered while it is selected, so a filter can never become impossible
+  // to clear.
+  const stages = useStages();
+  const chips = stages.all.filter((stage) => !stage.hidden || filters.statuses.has(stage.id));
   // Tags are a long, noisy row on a well-tagged list, so they stay folded away
   // until asked for. The toggle keeps the active count while it is closed.
   const [showTags, setShowTags] = useState(false);
@@ -54,16 +60,16 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
         )}
       </div>
       <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
-        {STATUSES.map((s) => (
+        {chips.map((stage) => (
           <button
-            key={s}
+            key={stage.id}
             type="button"
-            className={`chip ${filters.statuses.has(s) ? "chip-on" : ""}`}
-            aria-pressed={filters.statuses.has(s)}
-            onClick={() => toggleStatus(s)}
+            className={`chip ${filters.statuses.has(stage.id) ? "chip-on" : ""}`}
+            aria-pressed={filters.statuses.has(stage.id)}
+            onClick={() => toggleStatus(stage.id)}
           >
-            <StatusDot status={s} className="w-1.5 h-1.5" />
-            {STATUS_LABELS[s]}
+            <StatusDot status={stage.id} className="w-1.5 h-1.5" />
+            {stage.label}
           </button>
         ))}
         {tags.length > 0 && (

@@ -1,5 +1,6 @@
-import type { Application, Status } from "../../shared/types";
 import { needsAttention } from "../../shared/attention";
+import type { StageSet } from "../../shared/stages";
+import type { Application, Status } from "../../shared/types";
 
 export type Filters = {
   query: string;
@@ -14,12 +15,12 @@ export function isFiltering(f: Filters): boolean {
   return f.query.trim() !== "" || f.statuses.size > 0 || f.tags.size > 0 || f.attention;
 }
 
-export function applyFilters(apps: readonly Application[], f: Filters, now: Date): Application[] {
+export function applyFilters(apps: readonly Application[], f: Filters, stages: StageSet, now: Date): Application[] {
   const q = f.query.trim().toLowerCase();
   return apps.filter((a) => {
     if (f.statuses.size && !f.statuses.has(a.status)) return false;
     if (f.tags.size && !(a.tags ?? []).some((t) => f.tags.has(t))) return false;
-    if (f.attention && !needsAttention(a, now)) return false;
+    if (f.attention && !needsAttention(a, stages, now)) return false;
     if (q) {
       const hay = `${a.company}\n${a.role}\n${a.notes ?? ""}\n${a.location ?? ""}`.toLowerCase();
       if (!hay.includes(q)) return false;

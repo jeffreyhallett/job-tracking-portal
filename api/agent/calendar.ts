@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { openDb } from "../_db.js";
 import { route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { HttpError, requireUser } from "../_owner.js";
 import { buildCalendar } from "./_ics.js";
 import { loadAll } from "./_load.js";
 
@@ -14,14 +15,15 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "GET");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const { db, close } = openDb();
   try {
-    const apps = await loadAll(db, ownerId);
+    // The only endpoint that takes ?token=: calendar apps cannot send headers.
+    const user = await requireUser(req, res, db, { allowQueryToken: true });
+    const apps = await loadAll(db, user.id);
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", 'inline; filename="job-applications.ics"');
     res.setHeader("Cache-Control", "private, max-age=300");
-    res.status(200).send(buildCalendar(apps, new Date()));
+    res.status(200).send(buildCalendar(apps, resolveUserStages(user.prefs), new Date()));
   } finally {
     await close();
   }
