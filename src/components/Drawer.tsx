@@ -205,7 +205,30 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
               )}
             </div>
           )}
-          <Text label="Next action" value={app.nextAction} onCommit={(v) => commitText("nextAction", v)} placeholder="Follow up with recruiter" />
+          <Text
+            label="Next action"
+            value={app.nextAction}
+            onCommit={(v) => commitText("nextAction", v)}
+            placeholder="Follow up with recruiter"
+            trailing={
+              app.nextAction || app.nextActionDate ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm h-5 px-1.5 font-medium"
+                  style={{ color: "var(--c-accent)" }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    store.completeNextAction(app.id);
+                  }}
+                  title="Log it on the timeline and clear the reminder"
+                >
+                  <Icon name="check" size={12} strokeWidth={2.4} />
+                  Done
+                </button>
+              ) : undefined
+            }
+          />
           <Text label="Next action date" value={app.nextActionDate} onCommit={(v) => commitText("nextActionDate", v)} type="date" />
           <Text label="Applied on" value={app.appliedDate} onCommit={(v) => commitText("appliedDate", v)} type="date" />
           <Text label="Deadline" value={app.deadline} onCommit={(v) => commitText("deadline", v)} type="date" />
@@ -229,6 +252,12 @@ function EditForm({ app, store, now, onClose }: { app: Application; store: Store
                   <Icon name="clock" size={12} strokeWidth={2} />
                   {reasons.map(describeReason).join(" · ")}
                 </span>
+                {reasons.some((r) => r.kind === "action_due") && (
+                  <button type="button" className="btn btn-soft btn-sm" onClick={() => store.completeNextAction(app.id)}>
+                    <Icon name="check" size={14} strokeWidth={2} />
+                    Action done
+                  </button>
+                )}
                 <span className="text-muted ml-auto">Snooze</span>
                 {[
                   [3, "3d"],

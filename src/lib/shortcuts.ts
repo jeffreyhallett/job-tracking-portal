@@ -9,6 +9,7 @@ export type ShortcutHandlers = {
   close: () => void;
   setStatusIndex: (index: number) => void;
   toggleStageDone: () => void;
+  completeNextAction: () => void;
   snooze: () => void;
   toggleView: () => void;
   help: () => void;
@@ -28,6 +29,7 @@ export function shortcutList(laneNames: readonly string[]): [string, string][] {
     ["esc", "Close panel or clear selection"],
     [numbered.length > 1 ? `1 – ${numbered.length}` : "1", `Set status: ${numbered.join(", ")}`],
     ["c", "Mark the current stage (assessment, interview) complete"],
+    ["d", "Next action done: log it and clear the reminder"],
     ["s", "Snooze attention for 7 days"],
     ["v", "Switch board / table"],
     ["?", "This list"],
@@ -77,6 +79,10 @@ export function useShortcuts(h: ShortcutHandlers): void {
         case "c":
           e.preventDefault();
           h.toggleStageDone();
+          break;
+        case "d":
+          e.preventDefault();
+          h.completeNextAction();
           break;
         case "s":
           e.preventDefault();

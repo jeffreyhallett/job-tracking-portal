@@ -212,6 +212,30 @@ export function useApplications() {
     [state.apps, flagError, showToast],
   );
 
+  /**
+   * The next action has been done: record it on the timeline and clear the
+   * reminder, which is what drops the "action overdue" flag. The PATCH also
+   * bumps updatedAt, so the row stops looking stale.
+   */
+  const completeNextAction = useCallback(
+    (id: string) => {
+      const app = state.apps.find((a) => a.id === id);
+      if (!app || (!app.nextAction && !app.nextActionDate)) return;
+      const what = app.nextAction?.trim();
+      update(id, {
+        // "Done: " rather than "Completed: ", which is reserved for the marker
+        // that says a stage has been sat.
+        events: [...app.events, { date: todayISO(), label: what ? `Done: ${what}` : "Next action done" }],
+        nextAction: null,
+        nextActionDate: null,
+      });
+      showToast(`${app.company}: ${what || "next action"} done`, () =>
+        update(id, { events: app.events, nextAction: app.nextAction ?? null, nextActionDate: app.nextActionDate ?? null }),
+      );
+    },
+    [state.apps, update, showToast],
+  );
+
   /** Mute attention rules for N days (0 = unsnooze). */
   const snooze = useCallback(
     (id: string, days: number) => {
@@ -267,7 +291,7 @@ export function useApplications() {
     return () => window.removeEventListener("pagehide", flush);
   }, []);
 
-  return { state, update, setStatus, setStageDone, remove, snooze, addEvent, create, bulk, reload, dismissToast };
+  return { state, update, setStatus, setStageDone, completeNextAction, remove, snooze, addEvent, create, bulk, reload, dismissToast };
 }
 
 export type Store = ReturnType<typeof useApplications>;

@@ -169,6 +169,10 @@ function Tracker() {
         const app = id ? apps.find((a) => a.id === id) : undefined;
         if (app) store.setStageDone(app.id, stageCompletedOn(app, stages) === undefined);
       },
+      completeNextAction: () => {
+        const id = target();
+        if (id) store.completeNextAction(id);
+      },
       snooze: () => {
         const id = target();
         if (id) store.snooze(id, 7);

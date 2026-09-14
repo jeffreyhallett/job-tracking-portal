@@ -16,7 +16,7 @@ import {
   sessionToken,
   verifyPassword,
 } from "../shared/crypto.js";
-import { MIN_PASSWORD_LENGTH, passwordProblem } from "../shared/password.js";
+import { MAX_PASSWORD_LENGTH, passwordProblem } from "../shared/password.js";
 
 const PASSWORD = "correct horse battery";
 
@@ -51,13 +51,15 @@ describe("password hashing", () => {
 });
 
 describe("password rules", () => {
-  it("rejects short, blank and over-long passwords", () => {
-    assert.ok(passwordProblem("x".repeat(MIN_PASSWORD_LENGTH - 1)));
+  it("rejects only a blank or an absurdly long password", () => {
+    assert.ok(passwordProblem(""));
     assert.ok(passwordProblem("   "));
-    assert.ok(passwordProblem("x".repeat(201)));
+    assert.ok(passwordProblem("x".repeat(MAX_PASSWORD_LENGTH + 1)));
   });
 
-  it("accepts a reasonable one", () => {
+  it("imposes no minimum length", () => {
+    assert.equal(passwordProblem("a"), null);
+    assert.equal(passwordProblem("hunter2"), null);
     assert.equal(passwordProblem("a-decent-password"), null);
   });
 

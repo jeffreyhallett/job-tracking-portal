@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MIN_PASSWORD_LENGTH, passwordProblem } from "../../shared/password";
+import { passwordProblem } from "../../shared/password";
 import type { PublicUser } from "../../shared/user";
 import { api, ApiError, login } from "../api";
 import { Icon } from "./Icon";
@@ -113,7 +113,7 @@ export function SetPassword({ user, onDone }: { user: PublicUser; onDone: (user:
     <Gate
       title="Choose a password"
       subtitle={`Signed in as ${user.email}. Replace the temporary password before you start.`}
-      footer={<div className="text-[11px] text-muted">At least {MIN_PASSWORD_LENGTH} characters. Changing it signs out every other device.</div>}
+      footer={<div className="text-[11px] text-muted">Changing your password signs out every other device.</div>}
     >
       <form
         className="flex flex-col gap-3"

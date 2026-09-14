@@ -136,7 +136,7 @@ The site is public, the data is not. Signing in posts an email and password to `
 
 Every data handler resolves the caller through `requireUser(req, db)` in `api/_owner.ts` and scopes each query by `user.id`. Nothing else in `/api` knows how a request is authenticated, and no handler reads a row without that scope.
 
-- **Passwords** are scrypt hashes (`shared/crypto.ts`), with the parameters stored alongside each hash so they can be raised later without invalidating what is already written. Minimum 10 characters, enforced in the browser and again on the server from the same `shared/password.ts`.
+- **Passwords** are scrypt hashes (`shared/crypto.ts`), with the parameters stored alongside each hash so they can be raised later without invalidating what is already written. There is no minimum length: accounts are created by hand for people you know, and the sign-in throttle below is what actually stands between an account and a guessing attack.
 - **Session tokens** are stateless: an HMAC over (user id, issued-at) keyed on *that user's own password hash* plus `AUTH_SECRET`. So there is no session table, changing a password signs every device out, and setting `AUTH_SECRET` means a read-only database leak still cannot mint a session. Tokens expire after 90 days.
 - **Sign-in throttle.** Wrong guesses are counted on the user row and a 15-minute lock kicks in after eight, because serverless functions have no shared memory to rate-limit in. A wrong password and an unknown address get the same delay and the same message, so the response cannot be used to enumerate accounts.
 - **Isolation.** `applications.owner_id` holds the user's id, and it is in the `WHERE` clause of every read, update and delete — including the bulk merge, which also re-checks it per row inside the transaction. A request for an id belonging to someone else gets a 404, not their data.
@@ -260,13 +260,15 @@ Because everybody's stages differ, `GET /api/agent/digest` returns `user.stages`
 
 **Optimistic writes.** Edits apply immediately and PATCH in the background. On failure the row rolls back and a small inline error appears on the card or table row for a few seconds.
 
+**Next actions are marked done, not deleted.** A `nextAction` / `nextActionDate` that has come due shows as "action due today" or "action Nd overdue". Once you have done it, **Done** on the Next action field in the drawer (or `d` on the keyboard, or "Action done" beside the amber badge) appends `Done: <what it was>` to the timeline and clears both fields — which is what drops the flag. Undo is on the toast. A **deadline** warning is different: it only fires while the row has not been sent yet, so it clears itself when you move the row into a stage that means you applied.
+
 **Contacts, snooze, timeline entries.** Each application can hold contacts (name, role, email, last touch) and free-text timeline entries for interview notes. Snoozing an application (3d / 1w / 2w in the drawer, or `s` on the keyboard) mutes its attention rules until that date; the digest lists snoozed rows separately.
 
 **Undo.** Deleting, or moving to another status, shows a toast with Undo. A delete is only sent to the server after the undo window closes.
 
 **Calendar.** `/api/agent/calendar?token=<your agent token>` is an iCalendar feed of deadlines and next actions; subscribe to it from Google or Apple Calendar. It is the only endpoint that accepts the token in the query string, because calendar apps cannot send headers — everything else requires the `Authorization` header, since query strings end up in logs.
 
-**Keyboard.** Press `?` in the app for the list: `n` new, `/` search, `j`/`k` move, `↵` open, `1`–`9` set stage, `c` mark the current stage complete, `s` snooze a week, `v` switch view. The number keys follow *your* visible stages in *your* order, and the help sheet lists them by the names you gave them.
+**Keyboard.** Press `?` in the app for the list: `n` new, `/` search, `j`/`k` move, `↵` open, `1`–`9` set stage, `c` mark the current stage complete, `d` next action done, `s` snooze a week, `v` switch view. The number keys follow *your* visible stages in *your* order, and the help sheet lists them by the names you gave them.
 
 **Board on phones.** Below 768px the board collapses to the table automatically; the board/table toggle (stored in `localStorage`) only applies on wider screens.
 

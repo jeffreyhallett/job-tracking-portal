@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MIN_PASSWORD_LENGTH, passwordProblem } from "../../shared/password";
+import { passwordProblem } from "../../shared/password";
 import { defaultColumnPrefs, type ColumnPref } from "../../shared/prefs";
 import {
   MAX_STAGE_LABEL,
@@ -592,7 +592,7 @@ function ChangePasswordForm() {
         <div className="badge badge-danger h-auto py-1.5 px-3 whitespace-normal self-start">{problem ?? (mismatch ? "The two passwords do not match" : null) ?? error}</div>
       )}
       {done && <div className="badge badge-ok self-start">Changed. Other devices have been signed out.</div>}
-      <div className="text-[11px] text-muted">At least {MIN_PASSWORD_LENGTH} characters. Every other device is signed out; this one stays in.</div>
+      <div className="text-[11px] text-muted">Every other device is signed out; this one stays in.</div>
     </form>
   );
 }
