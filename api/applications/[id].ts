@@ -6,15 +6,15 @@ import { applicationPatchSchema } from "../../shared/schemas.js";
 import { statusEventLabel, todayISO } from "../../shared/types.js";
 import { openDb } from "../_db.js";
 import { paramId, parseBody, route, serialize } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { HttpError, requireUser } from "../_owner.js";
 
 // PATCH  /api/applications/:id -> partial update
 // DELETE /api/applications/:id
 export default route(async (req: VercelRequest, res: VercelResponse) => {
-  const ownerId = getOwnerId(req);
   const id = paramId(req);
   const { db, close } = openDb();
   try {
+    const { id: ownerId } = await requireUser(req, db);
     const scope = and(eq(applications.id, id), eq(applications.ownerId, ownerId));
 
     if (req.method === "PATCH") {

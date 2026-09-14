@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { STATUS_LABELS, type Application } from "../../shared/types";
+import type { Application } from "../../shared/types";
 import {
   buildBulkRequest,
   CLAUDE_PROMPT,
@@ -11,6 +11,7 @@ import {
   type ImportPlan,
   type PlanSelection,
 } from "../../shared/import";
+import { useStatusLabels } from "../lib/session";
 import type { Store } from "../state/store";
 import { CopyButton, Modal, StatusDot } from "./ui";
 
@@ -127,6 +128,7 @@ type PreviewProps = {
 };
 
 function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProps) {
+  const labels = useStatusLabels();
   const createCount = plan.creates.filter((c) => sel.includeCreates.has(c.index)).length;
   const updateCount = plan.updates.filter((u) => sel.includeUpdates.has(u.existing.id)).length;
   const unchanged = plan.skips.filter((s) => s.reason === "unchanged").length;
@@ -197,7 +199,7 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
               </div>
               <span className="text-[11px] text-muted flex items-center gap-1">
                 <StatusDot status={c.input.status} className="w-1.5 h-1.5" />
-                {STATUS_LABELS[c.input.status]}
+                {labels[c.input.status]}
               </span>
             </label>
           ))}
@@ -232,12 +234,12 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
                       <span className="text-muted w-24 shrink-0">status</span>
                       <span className="flex items-center gap-1">
                         <StatusDot status={u.statusChange.from} className="w-1.5 h-1.5" />
-                        {STATUS_LABELS[u.statusChange.from]}
+                        {labels[u.statusChange.from]}
                       </span>
                       <span className="text-muted">to</span>
                       <span className="flex items-center gap-1">
                         <StatusDot status={u.statusChange.to} className="w-1.5 h-1.5" />
-                        {STATUS_LABELS[u.statusChange.to]}
+                        {labels[u.statusChange.to]}
                       </span>
                       <span className="text-muted">(off by default; your status is never overwritten silently)</span>
                     </label>

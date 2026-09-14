@@ -15,6 +15,13 @@
       "when": 1788668468867,
       "tag": "0001_natural_raza",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789409637793,
+      "tag": "0002_low_sir_ram",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { useState, type RefObject } from "react";
-import { STATUSES, STATUS_LABELS, type Status } from "../../shared/types";
+import type { Status } from "../../shared/types";
 import { EMPTY_FILTERS, isFiltering, type Filters } from "../lib/filters";
+import { useSession } from "../lib/session";
 import { Icon } from "./Icon";
 import { StatusDot } from "./ui";
 
@@ -9,6 +10,11 @@ type Props = { filters: Filters; onChange: (f: Filters) => void; tags: string[];
 const TAG_LIST_ID = "tag-filters";
 
 export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
+  // Filtering offers the lanes the user kept, in their order. A status they
+  // hid is still filterable if it is already selected, so a saved filter never
+  // becomes impossible to clear.
+  const { lanes: allLanes } = useSession();
+  const lanes = allLanes.filter((lane) => !lane.hidden || filters.statuses.has(lane.status));
   // Tags are a long, noisy row on a well-tagged list, so they stay folded away
   // until asked for. The toggle keeps the active count while it is closed.
   const [showTags, setShowTags] = useState(false);
@@ -54,16 +60,16 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
         )}
       </div>
       <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
-        {STATUSES.map((s) => (
+        {lanes.map((lane) => (
           <button
-            key={s}
+            key={lane.status}
             type="button"
-            className={`chip ${filters.statuses.has(s) ? "chip-on" : ""}`}
-            aria-pressed={filters.statuses.has(s)}
-            onClick={() => toggleStatus(s)}
+            className={`chip ${filters.statuses.has(lane.status) ? "chip-on" : ""}`}
+            aria-pressed={filters.statuses.has(lane.status)}
+            onClick={() => toggleStatus(lane.status)}
           >
-            <StatusDot status={s} className="w-1.5 h-1.5" />
-            {STATUS_LABELS[s]}
+            <StatusDot status={lane.status} className="w-1.5 h-1.5" />
+            {lane.label}
           </button>
         ))}
         {tags.length > 0 && (

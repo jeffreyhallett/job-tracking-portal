@@ -12,6 +12,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
+    // scripts/ run on plain Node type stripping, which does not map ./x.js onto
+    // x.ts the way the bundler does for api/, so they import shared/*.ts directly.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

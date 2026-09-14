@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_LANE_LABEL, TABLE_COLUMNS } from "./prefs.js";
 import { STATUSES, WORK_MODELS } from "./types.js";
 
 // Strict schemas used by the API handlers to validate request bodies.
@@ -83,3 +84,51 @@ export const bulkRequestSchema = z.object({
 
 export type ApplicationInputParsed = z.infer<typeof applicationInputSchema>;
 export type ApplicationPatchParsed = z.infer<typeof applicationPatchSchema>;
+
+// Preferences. Deliberately loose on `status` / `key`: the bodies are bounded
+// here, then normalizePrefs() in shared/prefs.ts drops anything it does not
+// recognise, so one schema does not have to be regenerated whenever a lane or
+// column is added.
+export const userPrefsSchema = z.object({
+  lanes: z
+    .array(
+      z.object({
+        status: z.string().max(40),
+        label: z.string().max(MAX_LANE_LABEL).optional(),
+        hidden: z.boolean().optional(),
+      }),
+    )
+    .max(STATUSES.length * 2)
+    .optional(),
+  columns: z
+    .array(
+      z.object({
+        key: z.string().max(40),
+        hidden: z.boolean().optional(),
+      }),
+    )
+    .max(TABLE_COLUMNS.length * 2)
+    .optional(),
+});
+
+export const profilePatchSchema = z.object({
+  name: z.string().trim().max(120).nullable().optional(),
+  prefs: userPrefsSchema.optional(),
+});
+
+/**
+ * POST /api/me carries an `action` instead of being split into one Vercel
+ * function per verb; the deployment has a function budget and these three are
+ * rare, small, and all guarded the same way.
+ */
+export const accountActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("changePassword"),
+    // Absent when the account is still on the temporary password an admin set.
+    currentPassword: z.string().min(1).max(200).optional(),
+    newPassword: z.string().min(1).max(200),
+  }),
+  z.object({ action: z.literal("rotateAgentToken") }),
+  z.object({ action: z.literal("revokeAgentToken") }),
+  z.object({ action: z.literal("resetPrefs") }),
+]);

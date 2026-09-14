@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { STATUS_LABELS, statusEventLabel, todayISO, type Application, type ApplicationEvent, type ApplicationInput, type ApplicationPatch, type BulkRequest, type Status } from "../../shared/types";
+import { statusEventLabel, todayISO, type Application, type ApplicationEvent, type ApplicationInput, type ApplicationPatch, type BulkRequest, type Status } from "../../shared/types";
 import { toISODate } from "../../shared/dates";
 import { isCompletableStage, stageCompletedOn, withStageDone, withoutStageDone } from "../../shared/timeline";
 import { api } from "../api";
+import { useStatusLabels } from "../lib/session";
 
 export type Toast = { id: number; message: string; undo?: () => void };
 
@@ -94,6 +95,8 @@ const DELETE_GRACE_MS = 6000;
 
 export function useApplications() {
   const [state, dispatch] = useReducer(reducer, { apps: [], loaded: false, errors: {} });
+  // Toasts name the stage the way the user renamed it.
+  const labels = useStatusLabels();
   const timers = useRef(new Map<string, number>());
   const toastSeq = useRef(0);
   const toastTimer = useRef<number | null>(null);
@@ -159,11 +162,11 @@ export function useApplications() {
       const app = state.apps.find((a) => a.id === id);
       if (!app || app.status === status) return;
       update(id, statusPatch(app, status));
-      showToast(`${app.company} moved to ${STATUS_LABELS[status]}`, () =>
+      showToast(`${app.company} moved to ${labels[status]}`, () =>
         update(id, { status: app.status, events: app.events, appliedDate: app.appliedDate ?? null }),
       );
     },
-    [state.apps, update, showToast],
+    [state.apps, update, showToast, labels],
   );
 
   /** Mark the current stage (OA, phone screen, onsite) done, or undo that. */
@@ -173,12 +176,12 @@ export function useApplications() {
       if (!app || !isCompletableStage(app)) return;
       if (done === (stageCompletedOn(app) !== undefined)) return;
       update(id, { events: done ? withStageDone(app) : withoutStageDone(app) });
-      const stage = STATUS_LABELS[app.status];
+      const stage = labels[app.status];
       showToast(done ? `${app.company}: ${stage} marked complete` : `${app.company}: ${stage} no longer complete`, () =>
         update(id, { events: app.events }),
       );
     },
-    [state.apps, update, showToast],
+    [state.apps, update, showToast, labels],
   );
 
   /** Optimistic delete with an undo window; the DELETE only goes out after it closes. */

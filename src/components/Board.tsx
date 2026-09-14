@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import { STATUSES, STATUS_LABELS, type Application, type Status } from "../../shared/types";
+import { STATUSES, type Application, type Status } from "../../shared/types";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention";
 import { stageCompletedOn } from "../../shared/timeline";
 import { CompanyMark } from "./CompanyMark";
 import { Icon } from "./Icon";
 import { formatRelativeDays } from "../../shared/dates";
+import { useSession, useStatusLabels } from "../lib/session";
 import { STATUS_COLOR } from "../lib/status";
 
 type Props = {
@@ -14,16 +15,23 @@ type Props = {
   focusedId: string | null;
   onOpen: (id: string) => void;
   onMove: (id: string, status: Status) => void;
+  /** Opens Settings, from the note about lanes the user hid. */
+  onEditLanes: () => void;
 };
 
 const DRAG_MIME = "text/plain";
 
-export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
+export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditLanes }: Props) {
+  const { lanes, visibleLanes } = useSession();
   const [over, setOver] = useState<Status | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
   const byStatus = new Map<Status, Application[]>(STATUSES.map((s) => [s, []]));
   for (const a of apps) byStatus.get(a.status)?.push(a);
+
+  // A hidden lane must never swallow rows silently, so anything sitting in one
+  // gets a muted column at the end that says so and offers a way back.
+  const hidden = lanes.filter((lane) => lane.hidden && (byStatus.get(lane.status)?.length ?? 0) > 0);
 
   const onDrop = (e: DragEvent, status: Status) => {
     e.preventDefault();
@@ -36,13 +44,13 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
   return (
     <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
       <div className="flex h-full gap-3 px-4 sm:px-6 pb-4 min-w-max">
-        {STATUSES.map((status) => {
+        {visibleLanes.map(({ status, label }) => {
           const col = byStatus.get(status) ?? [];
           const isOver = over === status;
           return (
             <section
               key={status}
-              aria-label={STATUS_LABELS[status]}
+              aria-label={label}
               className={`lane flex flex-col w-[256px] h-full transition-[background-color,box-shadow] ${isOver ? "bg-accent-container/60 ring-2 ring-accent/50" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -56,7 +64,7 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
             >
               <header className="flex items-center gap-2 h-11 px-3.5 shrink-0">
                 <span className="w-2.5 h-2.5 rounded-full ring-4" style={{ backgroundColor: STATUS_COLOR[status], ["--tw-ring-color" as string]: `color-mix(in srgb, ${STATUS_COLOR[status]} 22%, transparent)` }} />
-                <span className="text-[13px] font-semibold tracking-[-0.01em]">{STATUS_LABELS[status]}</span>
+                <span className="text-[13px] font-semibold tracking-[-0.01em] truncate">{label}</span>
                 <span className="ml-auto badge badge-muted tabular-nums">{col.length}</span>
               </header>
               {/* pt/px leave room for the focus ring on the first card; the scroll container would clip it otherwise. */}
@@ -86,6 +94,27 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove }: Props) {
             </section>
           );
         })}
+
+        {hidden.length > 0 && (
+          <section aria-label="Hidden lanes" className="lane flex flex-col w-[200px] h-full">
+            <header className="flex items-center gap-2 h-11 px-3.5 shrink-0 text-muted">
+              <Icon name="eyeOff" size={14} />
+              <span className="text-[13px] font-semibold tracking-[-0.01em]">Hidden</span>
+            </header>
+            <div className="px-3.5 pb-3 flex flex-col gap-2 text-[12px] text-fg-2">
+              {hidden.map((lane) => (
+                <div key={lane.status} className="flex items-center gap-2">
+                  <span className="truncate">{lane.label}</span>
+                  <span className="badge badge-muted tabular-nums ml-auto">{byStatus.get(lane.status)?.length ?? 0}</span>
+                </div>
+              ))}
+              <button type="button" className="btn btn-ghost btn-sm self-start -ml-2" onClick={onEditLanes}>
+                <Icon name="settings" size={13} />
+                Edit lanes
+              </button>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -103,6 +132,7 @@ type CardProps = {
 };
 
 function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragEnd }: CardProps) {
+  const labels = useStatusLabels();
   const reasons = attentionReasons(app, now);
   const attention = reasons.map(describeReason).join(", ");
   const snoozed = isSnoozed(app, now);
@@ -165,7 +195,7 @@ function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragE
       {(reasons.length > 0 || snoozed || completedOn) && (
         <div className="mt-2 flex items-center gap-1 flex-wrap">
           {completedOn && (
-            <span className="badge badge-ok" title={`${STATUS_LABELS[app.status]} completed ${completedOn}`}>
+            <span className="badge badge-ok" title={`${labels[app.status]} completed ${completedOn}`}>
               <Icon name="check" size={12} strokeWidth={2} />
               done
             </span>

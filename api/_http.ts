@@ -3,7 +3,7 @@ import type { ZodType } from "zod";
 import type { ApplicationRow } from "../db/schema.js";
 import type { Application, WorkModel } from "../shared/types.js";
 import { isStatus } from "../shared/types.js";
-import { HttpError } from "./_owner.js";
+import { HttpError } from "./_error.js";
 
 /** Wraps a handler with uniform error handling. */
 export function route(

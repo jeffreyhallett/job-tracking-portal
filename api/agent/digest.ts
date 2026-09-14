@@ -2,17 +2,35 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention.js";
 import { daysBetween, parseDate } from "../../shared/dates.js";
 import { computeStats } from "../../shared/stats.js";
+import { resolveStatusLabels, type UserPrefs } from "../../shared/prefs.js";
 import { CLOSED_STAGES, STATUSES, todayISO, type Application, type Contact, type Status } from "../../shared/types.js";
 import { openDb } from "../_db.js";
+import { HttpError } from "../_error.js";
 import { queryParam, route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { requireUser, type AuthUser } from "../_owner.js";
+import { hiddenStatusesForAgent } from "../_user.js";
 import { loadAll } from "./_load.js";
 
 type Ref = { id: string; company: string; role: string; status: Status; url?: string };
 
+export type DigestUser = {
+  id: string;
+  email: string;
+  name?: string;
+  /**
+   * What this person calls each stage. They may have renamed the lanes, so an
+   * automation writing to them should use these words, not the status ids.
+   */
+  statusLabels: Record<Status, string>;
+  /** Stages hidden from their board; do not suggest moving a row into one. */
+  hiddenStatuses: Status[];
+};
+
 export type Digest = {
   generatedAt: string;
   today: string;
+  /** Whose tracker this is. Every number below is scoped to them alone. */
+  user: DigestUser;
   counts: { total: number; active: number; needsAttention: number; snoozed: number };
   pipeline: Record<Status, number>;
   stats: ReturnType<typeof computeStats>;
@@ -30,7 +48,7 @@ function ref(a: Application): Ref {
   return r;
 }
 
-export function buildDigest(apps: Application[], now: Date, activityDays: number, horizonDays: number): Digest {
+export function buildDigest(apps: Application[], user: AuthUser, now: Date, activityDays: number, horizonDays: number): Digest {
   const today = todayISO();
   const pipeline = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<Status, number>;
   for (const a of apps) pipeline[a.status]++;
@@ -82,6 +100,7 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
   return {
     generatedAt: now.toISOString(),
     today,
+    user: digestUser(user),
     counts: { total: apps.length, active: apps.filter((a) => !CLOSED_STAGES.includes(a.status)).length, needsAttention: needsAttention.length, snoozed: snoozed.length },
     pipeline,
     stats: computeStats(apps),
@@ -90,6 +109,17 @@ export function buildDigest(apps: Application[], now: Date, activityDays: number
     upcomingDeadlines,
     nextActions,
     recentActivity,
+  };
+}
+
+function digestUser(user: AuthUser): DigestUser {
+  const prefs: UserPrefs = user.prefs;
+  return {
+    id: user.id,
+    email: user.email,
+    ...(user.name ? { name: user.name } : {}),
+    statusLabels: resolveStatusLabels(prefs),
+    hiddenStatuses: hiddenStatusesForAgent(prefs) as Status[],
   };
 }
 
@@ -109,13 +139,13 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "GET");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const activityDays = intParam(req, "activityDays", 7, 90);
   const horizonDays = intParam(req, "horizonDays", 14, 90);
   const { db, close } = openDb();
   try {
-    const apps = await loadAll(db, ownerId);
-    res.status(200).json(buildDigest(apps, new Date(), activityDays, horizonDays));
+    const user = await requireUser(req, db);
+    const apps = await loadAll(db, user.id);
+    res.status(200).json(buildDigest(apps, user, new Date(), activityDays, horizonDays));
   } finally {
     await close();
   }

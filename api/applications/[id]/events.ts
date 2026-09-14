@@ -5,7 +5,7 @@ import { applications } from "../../../db/schema.js";
 import { todayISO } from "../../../shared/types.js";
 import { openDb } from "../../_db.js";
 import { paramId, parseBody, route, serialize } from "../../_http.js";
-import { getOwnerId, HttpError } from "../../_owner.js";
+import { HttpError, requireUser } from "../../_owner.js";
 
 const bodySchema = z.object({
   label: z.string().trim().min(1).max(500),
@@ -20,12 +20,12 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "POST");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const id = paramId(req);
   const body = parseBody(req, bodySchema);
   const event = { date: body.date ?? todayISO(), label: body.label };
   const { db, close } = openDb();
   try {
+    const { id: ownerId } = await requireUser(req, db);
     const [row] = await db
       .update(applications)
       .set({

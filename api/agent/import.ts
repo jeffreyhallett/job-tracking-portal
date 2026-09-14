@@ -4,7 +4,7 @@ import { buildBulkRequest, defaultSelection, parsePaste, planImport, type Import
 import { applyBulk } from "../_apply.js";
 import { openDb } from "../_db.js";
 import { parseBody, route } from "../_http.js";
-import { getOwnerId, HttpError } from "../_owner.js";
+import { HttpError, requireUser } from "../_owner.js";
 import { loadAll } from "./_load.js";
 
 // Accepts either a bare JSON array (exactly what the Sync prompt asks Claude
@@ -37,7 +37,6 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     res.setHeader("Allow", "POST");
     throw new HttpError(405, "Method not allowed");
   }
-  const ownerId = getOwnerId(req);
   const body = parseBody(req, bodySchema);
   const rows = Array.isArray(body) ? body : body.rows;
   const dryRun = Array.isArray(body) ? false : body.dryRun;
@@ -45,6 +44,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
 
   const { db, close } = openDb();
   try {
+    const { id: ownerId } = await requireUser(req, db);
     const existing = await loadAll(db, ownerId);
     const parsed = parsePaste(JSON.stringify(rows));
     if (parsed.fatal) throw new HttpError(400, parsed.fatal);

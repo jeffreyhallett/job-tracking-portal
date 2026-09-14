@@ -1,13 +1,15 @@
 // Seed a few rows so the UI has something to show. Idempotent: a row is only
-// inserted if the owner doesn't already have that company + role.
+// inserted if that account doesn't already have the same company + role.
 //
-//   npm run db:seed
+//   npm run db:seed -- you@example.com
+//   npm run db:seed                      # only when there is exactly one account
 //
-// Runs on plain Node 22 (type stripping), reads DATABASE_URL and
-// DEFAULT_OWNER_ID from .env.local / .env if present. The first file that
-// defines a variable wins, so ENV_FILE=.env.production.local targets the
-// production database instead of the Development one.
+// Needs an account to seed into, so run `npm run user:add` first. Runs on plain
+// Node 22 (type stripping) and reads DATABASE_URL from .env.local / .env if
+// present. The first file that defines a variable wins, so
+// ENV_FILE=.env.production.local targets production instead of Development.
 import { neon } from "@neondatabase/serverless";
+import { normalizeEmail } from "../shared/crypto.ts";
 
 for (const file of [process.env.ENV_FILE, ".env.local", ".env"]) {
   if (!file) continue;
@@ -19,12 +21,35 @@ for (const file of [process.env.ENV_FILE, ".env.local", ".env"]) {
 }
 
 const url = process.env.DATABASE_URL;
-const ownerId = process.env.DEFAULT_OWNER_ID || "default";
 if (!url) throw new Error("DATABASE_URL is not set");
 
 const sql = neon(url);
 console.log(`database: ${describe(url)}`);
-console.log(`owner:    ${ownerId}${process.env.DEFAULT_OWNER_ID ? "" : " (DEFAULT_OWNER_ID not set, using fallback)"}`);
+
+const { id: ownerId, email: ownerEmail } = await resolveOwner();
+console.log(`account:  ${ownerEmail}`);
+
+/**
+ * The account to seed into: the email on the command line, or the only account
+ * there is. Never invents one, so seeding cannot create rows nobody can read.
+ */
+async function resolveOwner(): Promise<{ id: string; email: string }> {
+  const requested = process.argv[2] ?? process.env.SEED_EMAIL;
+  type Row = { id: string; email: string };
+  if (requested) {
+    const email = normalizeEmail(requested);
+    const rows = (await sql`select id, email from users where email = ${email} limit 1`) as Row[];
+    const row = rows[0];
+    if (!row) throw new Error(`no account for ${email} — create one with: npm run user:add -- ${email}`);
+    return row;
+  }
+  const rows = (await sql`select id, email from users order by created_at limit 2`) as Row[];
+  if (rows.length === 0) throw new Error("no accounts yet — create one with: npm run user:add -- you@example.com");
+  const [first, second] = rows;
+  if (second) throw new Error("more than one account exists — say which: npm run db:seed -- you@example.com");
+  if (!first) throw new Error("no accounts yet — create one with: npm run user:add -- you@example.com");
+  return first;
+}
 
 function describe(connectionString: string): string {
   try {
