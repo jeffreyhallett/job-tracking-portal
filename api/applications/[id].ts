@@ -2,10 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { applications } from "../../db/schema.js";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { applicationPatchSchema } from "../../shared/schemas.js";
-import { statusEventLabel, todayISO } from "../../shared/types.js";
+import { statusEvent, todayISO } from "../../shared/types.js";
 import { openDb } from "../_db.js";
-import { paramId, parseBody, route, serialize } from "../_http.js";
+import { assertStage, paramId, parseBody, route, serialize } from "../_http.js";
 import { HttpError, requireUser } from "../_owner.js";
 
 // PATCH  /api/applications/:id -> partial update
@@ -14,27 +15,29 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const id = paramId(req);
   const { db, close } = openDb();
   try {
-    const { id: ownerId } = await requireUser(req, db);
-    const scope = and(eq(applications.id, id), eq(applications.ownerId, ownerId));
+    const user = await requireUser(req, db);
+    const stages = resolveUserStages(user.prefs);
+    const scope = and(eq(applications.id, id), eq(applications.ownerId, user.id));
 
     if (req.method === "PATCH") {
       const patch = parseBody(req, applicationPatchSchema);
+      assertStage(stages, patch.status);
       const set: PgUpdateSetSource<typeof applications> = { ...patch, updatedAt: new Date() };
       // A status change without an explicit events array (an agent, a script)
-      // still gets its "Status: X" timeline entry, and a move to Applied
-      // fills appliedDate. The web client sends events itself, so no doubles.
+      // still gets its timeline entry, and a move into a "waiting" stage fills
+      // appliedDate. The web client sends events itself, so no doubles.
       if (patch.status !== undefined && patch.events === undefined) {
         const today = todayISO();
-        const entry = JSON.stringify([{ date: today, label: statusEventLabel(patch.status) }]);
+        const entry = JSON.stringify([statusEvent(patch.status, today, stages)]);
         set.events = sql`case when ${applications.status} is distinct from ${patch.status}
           then coalesce(${applications.events}, '[]'::jsonb) || ${entry}::jsonb
           else coalesce(${applications.events}, '[]'::jsonb) end`;
-        if (patch.status === "applied" && patch.appliedDate === undefined) {
+        if (stages.isWaiting(patch.status) && patch.appliedDate === undefined) {
           set.appliedDate = sql`coalesce(${applications.appliedDate}, ${today}::date)`;
         }
-        // Back to Interested walks the apply back, so the row stops counting as
-        // applied (matches statusPatch on the client).
-        if (patch.status === "interested" && patch.appliedDate === undefined) {
+        // Moving back to a "not applied yet" stage walks the apply back, so the
+        // row stops counting as applied (matches statusPatch on the client).
+        if (stages.isLead(patch.status) && patch.appliedDate === undefined) {
           set.appliedDate = sql`case when ${applications.status} is distinct from ${patch.status} then null else ${applications.appliedDate} end`;
         }
       }

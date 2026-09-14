@@ -1,9 +1,8 @@
 import { z } from "zod";
+import { DEFAULT_STAGES, type StageSet } from "./stages.js";
 import {
-  STATUSES,
   WORK_MODELS,
-  isStatus,
-  statusEventLabel,
+  statusEvent,
   todayISO,
   type Application,
   type ApplicationInput,
@@ -45,31 +44,68 @@ const optionalDate = z.preprocess(
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD or ISO date").optional(),
 );
 
-const normalizeStatus = (v: unknown): unknown => {
-  if (typeof v !== "string") return undefined;
-  const s = v.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  const aliases: Record<string, Status> = {
-    online_assessment: "oa",
-    assessment: "oa",
-    phone: "phone_screen",
-    phonescreen: "phone_screen",
-    screen: "phone_screen",
-    recruiter_screen: "phone_screen",
-    interview: "onsite",
-    interviewing: "onsite",
-    final: "onsite",
-    final_round: "onsite",
-    reject: "rejected",
-    declined: "rejected",
-    no_response: "ghosted",
-    withdrew: "withdrawn",
-    wishlist: "interested",
-    saved: "interested",
-    to_apply: "interested",
-  };
-  const mapped = aliases[s] ?? s;
-  return isStatus(mapped) ? mapped : "interested";
+/**
+ * Free text a model or a spreadsheet might use for a stage, mapped onto the
+ * default stage ids. Only consulted when the user's own pipeline has a stage
+ * with that id, so an alias never invents a stage somebody does not have.
+ */
+const STATUS_ALIASES: Record<string, string> = {
+  online_assessment: "oa",
+  assessment: "oa",
+  take_home: "oa",
+  takehome: "oa",
+  phone: "phone_screen",
+  phonescreen: "phone_screen",
+  screen: "phone_screen",
+  screening: "phone_screen",
+  recruiter_screen: "phone_screen",
+  recruiter_call: "phone_screen",
+  interview: "onsite",
+  interviewing: "onsite",
+  final: "onsite",
+  final_round: "onsite",
+  onsite_interview: "onsite",
+  offered: "offer",
+  reject: "rejected",
+  rejection: "rejected",
+  declined: "rejected",
+  no_response: "ghosted",
+  ghost: "ghosted",
+  withdrew: "withdrawn",
+  wishlist: "interested",
+  saved: "interested",
+  to_apply: "interested",
+  lead: "interested",
+  submitted: "applied",
 };
+
+const slug = (v: string) => v.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+/**
+ * Resolve whatever the paste said into one of *this user's* stage ids, or
+ * undefined when nothing matches — which the planner reads as "no opinion"
+ * rather than forcing a guess onto the row.
+ */
+export function matchStage(raw: string | undefined, stages: StageSet): Status | undefined {
+  if (!raw) return undefined;
+  const s = slug(raw);
+  if (stages.has(s)) return s;
+
+  const byLabel = stages.all.find((stage) => slug(stage.label) === s);
+  if (byLabel) return byLabel.id;
+
+  const alias = STATUS_ALIASES[s];
+  if (alias && stages.has(alias)) return alias;
+
+  // The alias pointed at a default stage this pipeline does not have. Fall back
+  // to a stage in the same phase, which is the closest honest match.
+  const aliased = DEFAULT_STAGES.find((stage) => stage.id === alias);
+  if (aliased) {
+    const sameParse = stages.visible.find((stage) => stage.phase === aliased.phase);
+    if (sameParse) return sameParse.id;
+  }
+  return undefined;
+}
 
 const normalizeWorkModel = (v: unknown): unknown => {
   if (typeof v !== "string") return undefined;
@@ -109,7 +145,9 @@ export const importRowSchema = z.object({
   source: optionalText,
   // `undefined` when the row didn't say; the planner treats that as
   // "interested" for new rows and "no opinion" for existing ones.
-  status: z.preprocess(normalizeStatus, z.enum(STATUSES).optional()),
+  // Kept as the raw string: turning it into a stage needs the user's pipeline,
+  // which this schema has no access to. matchStage() does that in the planner.
+  status: optionalText,
   appliedDate: optionalDate,
   deadline: optionalDate,
   compensation: optionalText,
@@ -262,7 +300,7 @@ const REFRESH_FIELDS = ["location", "workModel", "url", "source", "deadline", "c
 /** Personal fields: only ever fill a blank. `notes` is deliberately here. */
 const FILL_FIELDS = ["notes", "referral", "resumeVersion", "appliedDate", "nextAction", "nextActionDate"] as const;
 
-export function planImport(parsed: ParseResult, existing: readonly Application[]): ImportPlan {
+export function planImport(parsed: ParseResult, existing: readonly Application[], stages: StageSet): ImportPlan {
   const byUrl = new Map<string, Application>();
   const byKey = new Map<string, Application>();
   for (const app of existing) {
@@ -287,7 +325,7 @@ export function planImport(parsed: ParseResult, existing: readonly Application[]
         continue;
       }
       seenInPaste.add(match.id);
-      const { changes, statusChange } = diffRow(match, row);
+      const { changes, statusChange } = diffRow(match, row, stages);
       if (changes.length === 0 && !statusChange) plan.skips.push({ index, existing: match, reason: "unchanged" });
       else plan.updates.push({ index, existing: match, matchedBy, changes, statusChange });
       continue;
@@ -302,7 +340,7 @@ export function planImport(parsed: ParseResult, existing: readonly Application[]
     }
     seenInPaste.add(pasteKey);
     seenInPaste.add(`k:${key}`);
-    plan.creates.push({ index, input: toInput(row) });
+    plan.creates.push({ index, input: toInput(row, stages) });
   }
   return plan;
 }
@@ -311,16 +349,18 @@ function toPreview(input: ApplicationInput): Application {
   return { ...input, id: "", createdAt: "", updatedAt: "" };
 }
 
-function toInput(row: ImportRow): ApplicationInput {
-  const status = row.status ?? "interested";
+function toInput(row: ImportRow, stages: StageSet): ApplicationInput {
+  // Nothing recognisable in the paste means the row starts where a new
+  // application starts in this pipeline, whatever that stage is called.
+  const status = matchStage(row.status, stages) ?? stages.initial().id;
   const today = todayISO();
-  const appliedDate = row.appliedDate ?? (status === "applied" ? today : undefined);
+  const appliedDate = row.appliedDate ?? (stages.isWaiting(status) ? today : undefined);
   const input: ApplicationInput = {
     company: row.company,
     role: row.role,
     status,
     tags: row.tags,
-    events: [{ date: status === "applied" && appliedDate ? appliedDate : today, label: statusEventLabel(status) }],
+    events: [statusEvent(status, stages.isWaiting(status) && appliedDate ? appliedDate : today, stages)],
   };
   for (const f of [...REFRESH_FIELDS, ...FILL_FIELDS] as const) {
     const v = row[f];
@@ -334,7 +374,7 @@ function assign<K extends keyof ApplicationInput>(target: ApplicationInput, key:
   target[key] = value;
 }
 
-function diffRow(existing: Application, row: ImportRow): { changes: FieldChange[]; statusChange?: { from: Status; to: Status } } {
+function diffRow(existing: Application, row: ImportRow, stages: StageSet): { changes: FieldChange[]; statusChange?: { from: Status; to: Status } } {
   const changes: FieldChange[] = [];
 
   for (const f of REFRESH_FIELDS) {
@@ -358,7 +398,8 @@ function diffRow(existing: Application, row: ImportRow): { changes: FieldChange[
     if (added.length) changes.push({ field: "tags", before: existing.tags ?? [], after: [...(existing.tags ?? []), ...added] });
   }
 
-  const statusChange = row.status !== undefined && row.status !== existing.status ? { from: existing.status, to: row.status } : undefined;
+  const proposed = matchStage(row.status, stages);
+  const statusChange = proposed !== undefined && proposed !== existing.status ? { from: existing.status, to: proposed } : undefined;
   return { changes, statusChange };
 }
 
@@ -383,7 +424,7 @@ export function defaultSelection(plan: ImportPlan): PlanSelection {
   };
 }
 
-export function buildBulkRequest(plan: ImportPlan, sel: PlanSelection): BulkRequest {
+export function buildBulkRequest(plan: ImportPlan, sel: PlanSelection, stages: StageSet): BulkRequest {
   const creates = plan.creates.filter((c) => sel.includeCreates.has(c.index)).map((c) => c.input);
   const updates: BulkRequest["updates"] = [];
   const today = todayISO();
@@ -396,8 +437,8 @@ export function buildBulkRequest(plan: ImportPlan, sel: PlanSelection): BulkRequ
     for (const c of u.changes) applyChange(patch, c);
     if (u.statusChange && sel.acceptStatus.has(u.existing.id)) {
       patch.status = u.statusChange.to;
-      patch.events = [...u.existing.events, { date: today, label: statusEventLabel(u.statusChange.to) }];
-      if (u.statusChange.to === "applied" && !u.existing.appliedDate && patch.appliedDate === undefined) patch.appliedDate = today;
+      patch.events = [...u.existing.events, statusEvent(u.statusChange.to, today, stages)];
+      if (stages.isWaiting(u.statusChange.to) && !u.existing.appliedDate && patch.appliedDate === undefined) patch.appliedDate = today;
     }
     if (Object.keys(patch).length) updates.push({ id: u.existing.id, patch });
   }
@@ -446,4 +487,4 @@ export function contextForClaude(apps: readonly Application[], withIds = false):
 
 export const CLAUDE_PROMPT = `Search for new-grad software engineering roles (US, 2027 start) at companies matching: [FILL IN]. Skip anything already in this list:
 [PASTE CONTEXT]
-Return only a JSON array, no prose, no markdown fences. Each object: \`company\`, \`role\`, \`location\`, \`workModel\` (onsite|hybrid|remote), \`url\`, \`source\`, \`deadline\` (YYYY-MM-DD, omit if unknown), \`compensation\` (omit if not posted), \`tags\` (array of short strings), \`notes\` (one sentence on why it fits or anything unusual about the process). Omit any field you can't verify from the posting — do not guess. Set \`status\` to "interested" for all of them.`;
+Return only a JSON array, no prose, no markdown fences. Each object: \`company\`, \`role\`, \`location\`, \`workModel\` (onsite|hybrid|remote), \`url\`, \`source\`, \`deadline\` (YYYY-MM-DD, omit if unknown), \`compensation\` (omit if not posted), \`tags\` (array of short strings), \`notes\` (one sentence on why it fits or anything unusual about the process). Omit any field you can't verify from the posting — do not guess. Leave \`status\` out entirely; each row will start at the beginning of my pipeline.`;

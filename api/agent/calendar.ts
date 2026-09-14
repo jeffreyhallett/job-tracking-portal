@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { openDb } from "../_db.js";
 import { route } from "../_http.js";
 import { HttpError, requireUser } from "../_owner.js";
@@ -17,12 +18,12 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const { db, close } = openDb();
   try {
     // The only endpoint that takes ?token=: calendar apps cannot send headers.
-    const { id: ownerId } = await requireUser(req, db, { allowQueryToken: true });
-    const apps = await loadAll(db, ownerId);
+    const user = await requireUser(req, db, { allowQueryToken: true });
+    const apps = await loadAll(db, user.id);
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", 'inline; filename="job-applications.ics"');
     res.setHeader("Cache-Control", "private, max-age=300");
-    res.status(200).send(buildCalendar(apps, new Date()));
+    res.status(200).send(buildCalendar(apps, resolveUserStages(user.prefs), new Date()));
   } finally {
     await close();
   }

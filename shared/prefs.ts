@@ -1,88 +1,14 @@
-// Per-user UI preferences: what the pipeline lanes are called, in what order,
-// and which ones show; plus the table view's columns. Stored as one jsonb blob
-// on the user row so it follows the person across devices, and read by the
-// client, the API, and the agent digest.
-//
-// The canonical Status ids in types.ts never change. A rename is a *label*, so
-// the DB check constraint, the events timeline ("Status: Phone screen"), the
-// attention rules and the stats all keep working when someone renames a lane.
-import { STATUSES, STATUS_LABELS, type Status } from "./types.js";
-
-// ---------------------------------------------------------------------------
-// Pipeline lanes
-// ---------------------------------------------------------------------------
-
-export type LanePref = {
-  status: Status;
-  /** Overrides STATUS_LABELS for this user. Absent or blank = use the default. */
-  label?: string;
-  /** Hidden lanes vanish from the board and the filter row, never from the data. */
-  hidden?: boolean;
-};
-
-export type Lane = { status: Status; label: string; hidden: boolean; renamed: boolean };
-
-export const MAX_LANE_LABEL = 40;
-
-/**
- * The user's lanes, in display order, with labels resolved.
- *
- * Unknown statuses in the stored prefs are dropped and statuses the prefs never
- * mention are appended in canonical order, so a stale preference blob can never
- * make a stage disappear from the app.
- */
-export function resolveLanes(prefs: UserPrefs | undefined): Lane[] {
-  const seen = new Set<Status>();
-  const lanes: Lane[] = [];
-  for (const pref of prefs?.lanes ?? []) {
-    if (!isKnownStatus(pref.status) || seen.has(pref.status)) continue;
-    seen.add(pref.status);
-    const label = pref.label?.trim().slice(0, MAX_LANE_LABEL);
-    lanes.push({
-      status: pref.status,
-      label: label || STATUS_LABELS[pref.status],
-      hidden: pref.hidden === true,
-      renamed: Boolean(label) && label !== STATUS_LABELS[pref.status],
-    });
-  }
-  for (const status of STATUSES) {
-    if (seen.has(status)) continue;
-    lanes.push({ status, label: STATUS_LABELS[status], hidden: false, renamed: false });
-  }
-  return lanes;
-}
-
-export function visibleLanes(lanes: readonly Lane[]): Lane[] {
-  return lanes.filter((l) => !l.hidden);
-}
-
-/** What each status is called for this user. Falls back to the built-in labels. */
-export function resolveStatusLabels(prefs: UserPrefs | undefined): Record<Status, string> {
-  const labels = { ...STATUS_LABELS };
-  for (const lane of resolveLanes(prefs)) labels[lane.status] = lane.label;
-  return labels;
-}
-
-/** Sort weight per status, following the user's lane order. */
-export function resolveStatusOrder(prefs: UserPrefs | undefined): Record<Status, number> {
-  const order = {} as Record<Status, number>;
-  resolveLanes(prefs).forEach((lane, i) => {
-    order[lane.status] = i;
-  });
-  return order;
-}
-
-/** Lane prefs equivalent to "everything as it ships", for seeding the editor. */
-export function defaultLanePrefs(): LanePref[] {
-  return STATUSES.map((status) => ({ status }));
-}
+// Per-user UI preferences: the pipeline (see stages.ts) and the table's columns.
+// Stored as one jsonb blob on the user row so they follow the person across
+// devices, and read by the client, the API, and the agent digest.
+import { DEFAULT_STAGES, resolveStages, sanitizeStages, type Stage, type StageSet } from "./stages.js";
 
 // ---------------------------------------------------------------------------
 // Table columns
 // ---------------------------------------------------------------------------
 
 export const TABLE_COLUMNS = [
-  { key: "status", label: "Status", sortable: true, required: true },
+  { key: "status", label: "Stage", sortable: true, required: true },
   { key: "company", label: "Company", sortable: true, required: true },
   { key: "role", label: "Role", sortable: true, required: false },
   { key: "location", label: "Location", sortable: true, required: false },
@@ -110,9 +36,9 @@ export type Column = TableColumnDef & { hidden: boolean };
 const COLUMN_BY_KEY = new Map<string, TableColumnDef>(TABLE_COLUMNS.map((c) => [c.key, c]));
 
 /**
- * The user's columns in display order. Same forgiving rules as the lanes:
- * unknown keys dropped, unmentioned columns appended (hidden unless they are
- * on by default), and `status` / `company` can never be hidden.
+ * The user's columns in display order. Forgiving in the same way the pipeline is:
+ * unknown keys dropped, unmentioned columns appended (hidden unless they are on
+ * by default), and `status` / `company` can never be hidden.
  */
 export function resolveColumns(prefs: UserPrefs | undefined): Column[] {
   const stored = prefs?.columns;
@@ -142,43 +68,66 @@ export function defaultColumnPrefs(): ColumnPref[] {
 }
 
 // ---------------------------------------------------------------------------
+// The whole blob
+// ---------------------------------------------------------------------------
+
+/**
+ * Lane preferences from the version that could only rename the nine built-in
+ * stages. Read once and converted to real stages; never written again.
+ */
+export type LegacyLanePref = { status: string; label?: string; hidden?: boolean };
 
 export type UserPrefs = {
-  lanes?: LanePref[];
+  stages?: Stage[];
   columns?: ColumnPref[];
+  /** @deprecated superseded by `stages`; still read so nothing is lost. */
+  lanes?: LegacyLanePref[];
 };
+
+/** The user's pipeline, resolved and ready to ask questions of. */
+export function resolveUserStages(prefs: UserPrefs | undefined): StageSet {
+  if (prefs?.stages) return resolveStages(prefs.stages);
+  if (prefs?.lanes) return resolveStages(stagesFromLegacyLanes(prefs.lanes));
+  return resolveStages(undefined);
+}
+
+/**
+ * Apply old lane prefs — order, display label, hidden — on top of the default
+ * stages, so an account set up before stages were editable keeps its look.
+ */
+export function stagesFromLegacyLanes(lanes: readonly LegacyLanePref[]): Stage[] {
+  const defaults = new Map(DEFAULT_STAGES.map((s) => [s.id, s]));
+  const stages: Stage[] = [];
+  const seen = new Set<string>();
+  for (const lane of lanes) {
+    const base = defaults.get(lane.status);
+    if (!base || seen.has(base.id)) continue;
+    seen.add(base.id);
+    const label = lane.label?.trim();
+    stages.push({ ...base, ...(label ? { label: label.slice(0, 40) } : {}), ...(lane.hidden ? { hidden: true } : {}) });
+  }
+  for (const stage of DEFAULT_STAGES) if (!seen.has(stage.id)) stages.push({ ...stage });
+  return stages;
+}
 
 /** Loose shape the API validates before handing it to normalizePrefs. */
 export type UserPrefsInput = {
-  lanes?: { status: string; label?: string; hidden?: boolean }[];
+  stages?: unknown[];
   columns?: { key: string; hidden?: boolean }[];
 };
 
 /**
- * Canonicalize prefs on the way into the database: unknown statuses and column
- * keys dropped, duplicates collapsed, labels trimmed, and anything that matches
- * the shipped default left out entirely. Keeps the stored blob small and means
- * resolve*() never has to cope with junk it did not write.
+ * Canonicalize prefs on the way into the database: the pipeline validated and
+ * cleaned by sanitizeStages, unknown column keys dropped, duplicates collapsed.
+ * Keeps the stored blob small and means resolve*() never has to cope with junk
+ * it did not write. Writing `stages` drops any legacy `lanes`.
  */
 export function normalizePrefs(input: UserPrefsInput | undefined): UserPrefs {
   const prefs: UserPrefs = {};
 
-  if (input?.lanes) {
-    const seen = new Set<Status>();
-    const lanes: LanePref[] = [];
-    for (const lane of input.lanes) {
-      if (!isKnownStatus(lane.status) || seen.has(lane.status)) continue;
-      seen.add(lane.status);
-      const label = lane.label?.trim().slice(0, MAX_LANE_LABEL);
-      lanes.push({
-        status: lane.status,
-        ...(label && label !== STATUS_LABELS[lane.status] ? { label } : {}),
-        ...(lane.hidden ? { hidden: true } : {}),
-      });
-    }
-    // Statuses the client left out keep their default position at the end.
-    for (const status of STATUSES) if (!seen.has(status)) lanes.push({ status });
-    prefs.lanes = lanes;
+  if (input?.stages) {
+    const stages = sanitizeStages(input.stages);
+    if (stages) prefs.stages = stages;
   }
 
   if (input?.columns) {
@@ -195,23 +144,4 @@ export function normalizePrefs(input: UserPrefsInput | undefined): UserPrefs {
   }
 
   return prefs;
-}
-
-function isKnownStatus(value: unknown): value is Status {
-  return typeof value === "string" && (STATUSES as readonly string[]).includes(value);
-}
-
-/**
- * Rewrite a stored status event label so it reads in the user's own words.
- * The stored label stays canonical ("Status: Phone screen"); only the display
- * changes, which is what keeps renames from breaking the stats replay.
- */
-export function displayEventLabel(label: string, labels: Record<Status, string>): string {
-  for (const prefix of ["Status: ", "Completed: "]) {
-    if (!label.startsWith(prefix)) continue;
-    const name = label.slice(prefix.length);
-    const status = STATUSES.find((s) => STATUS_LABELS[s] === name);
-    if (status && labels[status] !== name) return `${prefix}${labels[status]}`;
-  }
-  return label;
 }

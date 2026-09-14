@@ -20,5 +20,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src", "api", "shared", "db", "scripts", "vite.config.ts", "drizzle.config.ts"]
+  "include": ["src", "api", "shared", "db", "scripts", "tests", "vite.config.ts", "drizzle.config.ts"]
 }

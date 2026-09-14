@@ -67,7 +67,8 @@ export const api = {
   bulk: (body: BulkRequest) => request<BulkResponse>("/api/applications/bulk", { method: "POST", body: JSON.stringify(body) }),
 
   me: () => request<PublicUser>("/api/me"),
-  updateMe: (patch: { name?: string | null; prefs?: UserPrefs }) => request<PublicUser>("/api/me", { method: "PATCH", body: JSON.stringify(patch) }),
+  updateMe: (patch: { name?: string | null; prefs?: UserPrefs; reassignStages?: { from: string; to: string }[] }) =>
+    request<PublicUser>("/api/me", { method: "PATCH", body: JSON.stringify(patch) }),
 
   /**
    * A password change invalidates every token this user holds, including the one

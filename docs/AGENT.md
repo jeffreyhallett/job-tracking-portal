@@ -41,8 +41,15 @@ Query: `activityDays` (default 7, max 90), `horizonDays` (default 14, max 90).
   "today": "2026-09-06",
   "user": {
     "id": "6f1e8b02-…", "email": "you@example.com", "name": "You",
-    "statusLabels": { "interested": "Wishlist", "applied": "Applied", "oa": "Take-home", "phone_screen": "Recruiter call", "onsite": "Final round", "offer": "Offer", "rejected": "Rejected", "ghosted": "Ghosted", "withdrawn": "Withdrawn" },
-    "hiddenStatuses": ["withdrawn"]
+    "stages": [
+      { "id": "researching", "label": "Researching", "phase": "lead" },
+      { "id": "applied", "label": "Applied", "phase": "waiting" },
+      { "id": "portfolio_review", "label": "Portfolio review", "phase": "active" },
+      { "id": "offer", "label": "Offer", "phase": "offer" },
+      { "id": "passed", "label": "Passed on me", "phase": "closed" },
+      { "id": "withdrawn", "label": "Withdrawn", "phase": "closed", "hidden": true }
+    ],
+    "statusLabels": { "researching": "Researching", "applied": "Applied", "portfolio_review": "Portfolio review", "offer": "Offer", "passed": "Passed on me", "withdrawn": "Withdrawn" }
   },
   "counts": { "total": 12, "active": 9, "needsAttention": 3, "snoozed": 1 },
   "pipeline": { "interested": 4, "applied": 3, "oa": 1, "phone_screen": 1, "onsite": 0, "offer": 0, "rejected": 2, "ghosted": 1, "withdrawn": 0 },
@@ -60,10 +67,25 @@ Query: `activityDays` (default 7, max 90), `horizonDays` (default 14, max 90).
 
 `needsAttention` uses the same three rules as the header count and skips anything the user snoozed (those are listed under `snoozed` instead). `contacts` appears on an item when the user has logged people for it, so a follow-up suggestion can name who to write to. `nextActions` includes overdue items (negative `daysUntil`).
 
-`user` says whose tracker this is, and is how a task written once becomes personal:
+`user` says whose tracker this is, and is how a task written once becomes personal.
 
-- **`statusLabels`** maps each status id to what *this person* calls it. They may have renamed the lanes, so write to them in these words — say "moved to Take-home", not "moved to OA". The ids themselves never change, so keep sending ids in `PATCH` bodies.
-- **`hiddenStatuses`** are stages they took off their board. Do not suggest moving a row into one.
+**Read `user.stages` rather than assuming a pipeline.** Every account builds its own — stage names, how many there are, and what they mean — so the nine defaults (`interested`, `applied`, `oa`, `phone_screen`, `onsite`, `offer`, `rejected`, `ghosted`, `withdrawn`) are just one possibility. Each entry has:
+
+- **`id`** — what you send in a `PATCH`. Stable for the life of the stage, even when it is renamed.
+- **`label`** — what to call it when you write to this person. Say "moved to Portfolio review", not "moved to portfolio_review".
+- **`phase`** — what the stage *means*, so you can reason about a pipeline you have never seen:
+
+  | `phase` | Meaning | Useful to know |
+  | --- | --- | --- |
+  | `lead` | Not applied yet | The deadline still matters |
+  | `waiting` | Applied, nothing back | Counts as applied; goes stale when quiet |
+  | `active` | In progress with them: interview, test, review | Counts as a response; goes stale when quiet; can be marked complete |
+  | `offer` | They made an offer | Counts as a response; never stale |
+  | `closed` | Over, however it ended | Stops counting as active |
+
+- **`hidden`** — they took this stage off their board. Do not suggest moving a row into one.
+
+`statusLabels` is the same id-to-label mapping, flattened, for convenience.
 
 ### `GET /api/agent/context`
 
@@ -85,7 +107,7 @@ Body: either a bare JSON array of postings (exactly what the search prompt asks 
 { "rows": [ ... ], "dryRun": false, "acceptStatus": false }
 ```
 
-Runs the same pipeline as the Sync modal: lenient parsing (only `company` and `role` required), dedupe by normalized URL then fuzzy company + role, then a merge that refreshes posting metadata (location, work model, URL, source, deadline, compensation), fills blanks elsewhere, unions tags, and never overwrites `notes`, `status`, or `events`. `acceptStatus: true` applies status changes the import proposes; default off. `dryRun: true` returns the plan and writes nothing. Everything else is written in one transaction.
+Runs the same pipeline as the Sync modal: lenient parsing (only `company` and `role` required), dedupe by normalized URL then fuzzy company + role, then a merge that refreshes posting metadata (location, work model, URL, source, deadline, compensation), fills blanks elsewhere, unions tags, and never overwrites `notes`, `status`, or `events`. A `status` in a row is matched against that account's own stages — by id, by name, then by alias and phase — and a row that matches nothing starts wherever their pipeline starts; omitting it is fine and usually better. `acceptStatus: true` applies status changes the import proposes; default off. `dryRun: true` returns the plan and writes nothing. Everything else is written in one transaction.
 
 Response (201 on write, 200 on dry run):
 
@@ -102,9 +124,11 @@ Response (201 on write, 200 on dry run):
 
 ### `PATCH /api/applications/:id`
 
-Partial update. Send only the fields to change; `null` clears an optional field. Status must be one of `interested`, `applied`, `oa`, `phone_screen`, `onsite`, `offer`, `rejected`, `ghosted`, `withdrawn` — these ids are fixed and are what you send, whatever the user has renamed the lanes to in their UI. Use `digest.user.statusLabels` when you *talk* about a stage.
+Partial update. Send only the fields to change; `null` clears an optional field.
 
-A status change is enough on its own: `{ "status": "phone_screen" }` appends the "Status: Phone screen" timeline entry server-side and, for `applied`, fills `appliedDate` if blank. Moving backwards is treated as a correction: `{ "status": "interested" }` clears `appliedDate`, and the stats stop counting any response logged before the move (they replay the timeline, so a row that briefly touched OA and went back to Applied is not a response). Do not send `events` from an agent (that replaces the whole array); use the events endpoint below for anything beyond the status line.
+`status` must be the **id** of one of that account's own stages — take it from `digest.user.stages`. Anything else is rejected with a 400 listing the ids that are valid, rather than being silently coerced. Use the stage's `label` when you *talk* about it.
+
+A stage change is enough on its own: `{ "status": "phone_screen" }` appends the timeline entry server-side and, for a stage whose phase is `waiting`, fills `appliedDate` if blank. Moving backwards is treated as a correction: moving into a `lead` stage clears `appliedDate`, and the stats stop counting any response logged before the move (they replay the timeline, so a row that briefly touched a later stage and came back is not a response). Do not send `events` from an agent (that replaces the whole array); use the events endpoint below for anything beyond the stage line.
 
 Other useful patches: `{ "nextAction": "Send thank-you note", "nextActionDate": "2026-09-08" }`, `{ "snoozedUntil": "2026-09-13" }`.
 
@@ -112,7 +136,7 @@ Other useful patches: `{ "nextAction": "Send thank-you note", "nextActionDate": 
 
 Body `{ "label": "Recruiter replied, OA link sent", "date": "2026-09-06" }` (date optional, defaults to today). Appends one timeline event atomically and bumps `updatedAt`, which clears the "stale" flag. Use this to log things the agent learned from email or a calendar.
 
-One label is special: `"Completed: OA"` (also `Completed: Phone screen`, `Completed: Onsite`) marks the stage the row is in as done — the OA was submitted, the interview happened — and shows as a *done* badge in the app. Only send it when the row's current status matches the stage named.
+To mark the stage a row is in as done — the assessment was submitted, the interview happened — send `"Completed: <the stage's label>"`. It shows as a *done* badge in the app. Only stages the account marked as completable accept it (by default, any stage whose phase is `active`), and only when the row's current stage is the one named.
 
 To record who was involved, patch `contacts` on the row: `PATCH /api/applications/:id` with `{ "contacts": [ …existing…, { "name": "…", "email": "…", "role": "Recruiter", "lastContact": "2026-09-06" } ] }`. To mute attention on a row for a while: `{ "snoozedUntil": "2026-09-13" }`.
 
@@ -131,8 +155,10 @@ You maintain my job application tracker. Base URL: https://jobs.jeffreyhallett.c
 Auth: send header "Authorization: Bearer [YOUR AGENT TOKEN]" on every request.
 
 1. GET /api/agent/digest
-2. Refer to each stage by user.statusLabels from that response — I may have renamed the
-   lanes — and never suggest moving a row into one of user.hiddenStatuses.
+2. Read user.stages from that response: my pipeline is mine, not a standard one.
+   Send a stage's id in any PATCH, call it by its label when you write to me, and use
+   its phase to understand it ("active" = in progress with them, "closed" = over).
+   Never suggest moving a row into a stage marked hidden.
 3. Write me a short update, plain text, in this order and only if non-empty:
    - Needs attention: one line each, "Company — Role: reason". Suggest the single most useful next step for each. If the item has contacts, name the person to write to and how long since lastContact.
    - Deadlines in the next 14 days.
@@ -141,7 +167,7 @@ Auth: send header "Authorization: Bearer [YOUR AGENT TOKEN]" on every request.
    - Snoozed: one line, "Company (until date)" for each entry in snoozed. No suggestions for these; I muted them on purpose.
    - One line of stats: active, applied, response rate, median days to response.
 4. Do not change any data unless a step below says so. Never delete anything.
-[Optional, weekly] 5. GET /api/agent/context, then search for new-grad software engineering roles (US, 2027 start) at companies matching: [FILL IN]. Skip anything in the context list. Build a JSON array as described below and POST it to /api/agent/import with {"rows": [...], "dryRun": false}. Report counts.created and counts.updated. Each object: company, role, location, workModel (onsite|hybrid|remote), url, source, deadline (YYYY-MM-DD, omit if unknown), compensation (omit if not posted), tags (array of short strings), notes (one sentence). Omit any field you cannot verify from the posting; do not guess. Set status to "interested".
+[Optional, weekly] 5. GET /api/agent/context, then search for new-grad software engineering roles (US, 2027 start) at companies matching: [FILL IN]. Skip anything in the context list. Build a JSON array as described below and POST it to /api/agent/import with {"rows": [...], "dryRun": false}. Report counts.created and counts.updated. Each object: company, role, location, workModel (onsite|hybrid|remote), url, source, deadline (YYYY-MM-DD, omit if unknown), compensation (omit if not posted), tags (array of short strings), notes (one sentence). Omit any field you cannot verify from the posting; do not guess. Leave status out and each row starts wherever my pipeline starts.
 ```
 
 ## Local testing

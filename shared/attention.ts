@@ -1,5 +1,6 @@
-import { IN_FLIGHT_STAGES, type Application } from "./types.js";
 import { daysBetween, daysSince, parseDate } from "./dates.js";
+import type { StageSet } from "./stages.js";
+import type { Application } from "./types.js";
 
 export type AttentionReason =
   | { kind: "stale"; days: number }
@@ -11,10 +12,15 @@ export const DEADLINE_WINDOW_DAYS = 7;
 
 /**
  * An application needs attention when any of these hold:
- *  - in flight (applied / oa / phone_screen / onsite) and untouched > 14 days
+ *  - it is in a stage where the company owes you a move, and has not been
+ *    touched in more than 14 days
  *  - nextActionDate is today or past
- *  - status still `interested` and the deadline is within 7 days
+ *  - nothing has been sent yet and the deadline is within 7 days
+ *
+ * Which stages those are is the user's pipeline talking, not a constant: see
+ * `phase` in stages.ts.
  */
+
 /** True while the app's attention rules are muted. */
 export function isSnoozed(app: Application, now: Date = new Date()): boolean {
   const until = parseDate(app.snoozedUntil);
@@ -22,10 +28,10 @@ export function isSnoozed(app: Application, now: Date = new Date()): boolean {
 }
 
 /** Reasons regardless of snooze; the UI shows these greyed out while snoozed. */
-export function rawAttentionReasons(app: Application, now: Date = new Date()): AttentionReason[] {
+export function rawAttentionReasons(app: Application, stages: StageSet, now: Date = new Date()): AttentionReason[] {
   const reasons: AttentionReason[] = [];
 
-  if (IN_FLIGHT_STAGES.includes(app.status)) {
+  if (stages.isInFlight(app.status)) {
     const days = daysSince(app.updatedAt, now);
     if (days > STALE_AFTER_DAYS) reasons.push({ kind: "stale", days });
   }
@@ -37,7 +43,7 @@ export function rawAttentionReasons(app: Application, now: Date = new Date()): A
   }
 
   const deadline = parseDate(app.deadline);
-  if (deadline && app.status === "interested") {
+  if (deadline && stages.isLead(app.status)) {
     const until = daysBetween(now, deadline);
     if (until <= DEADLINE_WINDOW_DAYS) reasons.push({ kind: "deadline_soon", days: until });
   }
@@ -46,12 +52,12 @@ export function rawAttentionReasons(app: Application, now: Date = new Date()): A
 }
 
 /** Reasons that count: empty while snoozed. */
-export function attentionReasons(app: Application, now: Date = new Date()): AttentionReason[] {
-  return isSnoozed(app, now) ? [] : rawAttentionReasons(app, now);
+export function attentionReasons(app: Application, stages: StageSet, now: Date = new Date()): AttentionReason[] {
+  return isSnoozed(app, now) ? [] : rawAttentionReasons(app, stages, now);
 }
 
-export function needsAttention(app: Application, now: Date = new Date()): boolean {
-  return attentionReasons(app, now).length > 0;
+export function needsAttention(app: Application, stages: StageSet, now: Date = new Date()): boolean {
+  return attentionReasons(app, stages, now).length > 0;
 }
 
 export function describeReason(r: AttentionReason): string {

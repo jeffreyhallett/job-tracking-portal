@@ -1,39 +1,31 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import {
-  resolveColumns,
-  resolveLanes,
-  resolveStatusLabels,
-  resolveStatusOrder,
-  visibleColumns as onlyVisibleColumns,
-  visibleLanes as onlyVisibleLanes,
-  type Column,
-  type Lane,
-  type UserPrefs,
-} from "../../shared/prefs";
-import type { Status } from "../../shared/types";
+import { resolveColumns, resolveUserStages, visibleColumns as onlyVisibleColumns, type Column, type UserPrefs } from "../../shared/prefs";
+import type { StageSet } from "../../shared/stages";
 import type { PublicUser } from "../../shared/user";
 import { api } from "../api";
 
+/** Moving a deleted stage's applications somewhere that still exists. */
+export type StageReassignment = { from: string; to: string };
+
 /**
- * Who is signed in, and everything derived from their preferences.
+ * Who is signed in, and their pipeline.
  *
- * The lane labels live here rather than being threaded through a dozen
- * components: renaming "Phone screen" has to change the board header, the table
- * select, the filter chips, the drawer and the toasts at once.
+ * The StageSet lives here rather than being threaded through a dozen
+ * components: adding a stage, renaming one, or changing what one means has to
+ * change the board, the table, the filter chips, the drawer, the sort order and
+ * the toasts at once.
  */
 export type Session = {
   user: PublicUser;
-  /** Every lane in the user's order, hidden ones included (Settings needs them). */
-  lanes: Lane[];
-  visibleLanes: Lane[];
-  /** What this user calls each status. Always covers every Status. */
-  labels: Record<Status, string>;
-  /** Sort weight per status, following the user's lane order. */
-  statusOrder: Record<Status, number>;
+  stages: StageSet;
   columns: Column[];
   visibleColumns: Column[];
-  /** Apply prefs locally at once, then persist. Reverts if the write fails. */
-  savePrefs: (prefs: UserPrefs) => Promise<void>;
+  /**
+   * Apply preferences locally at once, then persist. Reverts if the write
+   * fails. `reassign` moves the applications of stages being removed, in the
+   * same transaction as the new pipeline.
+   */
+  savePrefs: (prefs: UserPrefs, reassign?: StageReassignment[]) => Promise<void>;
   setUser: (user: PublicUser) => void;
   signOut: () => void;
 };
@@ -49,11 +41,11 @@ type ProviderProps = {
 
 export function SessionProvider({ user, onUser, onSignOut, children }: ProviderProps) {
   const savePrefs = useCallback(
-    async (prefs: UserPrefs) => {
+    async (prefs: UserPrefs, reassign?: StageReassignment[]) => {
       const previous = user;
       onUser({ ...user, prefs });
       try {
-        onUser(await api.updateMe({ prefs }));
+        onUser(await api.updateMe({ prefs, ...(reassign?.length ? { reassignStages: reassign } : {}) }));
       } catch (e) {
         onUser(previous);
         throw e;
@@ -63,14 +55,10 @@ export function SessionProvider({ user, onUser, onSignOut, children }: ProviderP
   );
 
   const value = useMemo<Session>(() => {
-    const lanes = resolveLanes(user.prefs);
     const columns = resolveColumns(user.prefs);
     return {
       user,
-      lanes,
-      visibleLanes: onlyVisibleLanes(lanes),
-      labels: resolveStatusLabels(user.prefs),
-      statusOrder: resolveStatusOrder(user.prefs),
+      stages: resolveUserStages(user.prefs),
       columns,
       visibleColumns: onlyVisibleColumns(columns),
       savePrefs,
@@ -88,7 +76,7 @@ export function useSession(): Session {
   return session;
 }
 
-/** The common case: just the lane names. */
-export function useStatusLabels(): Record<Status, string> {
-  return useSession().labels;
+/** The common case: just the pipeline. */
+export function useStages(): StageSet {
+  return useSession().stages;
 }

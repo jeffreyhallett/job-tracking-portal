@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { UserPrefs } from "../shared/prefs.js";
-import { STATUSES, type ApplicationEvent, type Contact } from "../shared/types.js";
+import type { ApplicationEvent, Contact } from "../shared/types.js";
 
 /**
  * One row per person with an account. Accounts are created out of band with
@@ -73,10 +73,10 @@ export const applications = pgTable(
   (t) => [
     index("applications_owner_status_idx").on(t.ownerId, t.status),
     index("applications_owner_updated_idx").on(t.ownerId, t.updatedAt),
-    check(
-      "applications_status_check",
-      sql`${t.status} in (${sql.raw(STATUSES.map((s) => `'${s}'`).join(", "))})`,
-    ),
+    // Stages are per-user data now (shared/stages.ts), so this can only police
+    // the shape of an id. Membership of the owner's pipeline is checked in the
+    // handlers, which are the only thing that knows whose row this is.
+    check("applications_status_check", sql`${t.status} ~ '^[a-z0-9][a-z0-9_]{0,39}$'`),
     check("applications_work_model_check", sql`${t.workModel} is null or ${t.workModel} in ('onsite', 'hybrid', 'remote')`),
   ],
 );

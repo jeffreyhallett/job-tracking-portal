@@ -11,7 +11,7 @@ import {
   type ImportPlan,
   type PlanSelection,
 } from "../../shared/import";
-import { useStatusLabels } from "../lib/session";
+import { useStages } from "../lib/session";
 import type { Store } from "../state/store";
 import { CopyButton, Modal, StatusDot } from "./ui";
 
@@ -24,6 +24,8 @@ export function SyncModal({ apps, store, onClose }: Props) {
   const [stage, setStage] = useState<Stage>({ kind: "input" });
   const [fatal, setFatal] = useState<string | null>(null);
 
+  const stages = useStages();
+
   const preview = useCallback(() => {
     const parsed = parsePaste(text);
     if (parsed.fatal) {
@@ -31,15 +33,15 @@ export function SyncModal({ apps, store, onClose }: Props) {
       return;
     }
     setFatal(null);
-    const plan = planImport(parsed, apps);
+    const plan = planImport(parsed, apps, stages);
     setStage({ kind: "preview", plan, sel: defaultSelection(plan) });
-  }, [text, apps]);
+  }, [text, apps, stages]);
 
   const apply = async (plan: ImportPlan, sel: PlanSelection) => {
     setStage({ kind: "applying", plan, sel });
     setFatal(null);
     try {
-      const result = await store.bulk(buildBulkRequest(plan, sel));
+      const result = await store.bulk(buildBulkRequest(plan, sel, stages));
       setStage({ kind: "done", created: result.created.length, updated: result.updated.length });
     } catch (e) {
       setFatal(e instanceof Error ? `Nothing was written: ${e.message}` : "Nothing was written.");
@@ -128,7 +130,7 @@ type PreviewProps = {
 };
 
 function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProps) {
-  const labels = useStatusLabels();
+  const stages = useStages();
   const createCount = plan.creates.filter((c) => sel.includeCreates.has(c.index)).length;
   const updateCount = plan.updates.filter((u) => sel.includeUpdates.has(u.existing.id)).length;
   const unchanged = plan.skips.filter((s) => s.reason === "unchanged").length;
@@ -199,7 +201,7 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
               </div>
               <span className="text-[11px] text-muted flex items-center gap-1">
                 <StatusDot status={c.input.status} className="w-1.5 h-1.5" />
-                {labels[c.input.status]}
+                {stages.label(c.input.status ?? stages.initial().id)}
               </span>
             </label>
           ))}
@@ -234,12 +236,12 @@ function Preview({ plan, sel, busy, error, onSel, onBack, onApply }: PreviewProp
                       <span className="text-muted w-24 shrink-0">status</span>
                       <span className="flex items-center gap-1">
                         <StatusDot status={u.statusChange.from} className="w-1.5 h-1.5" />
-                        {labels[u.statusChange.from]}
+                        {stages.label(u.statusChange.from)}
                       </span>
                       <span className="text-muted">to</span>
                       <span className="flex items-center gap-1">
                         <StatusDot status={u.statusChange.to} className="w-1.5 h-1.5" />
-                        {labels[u.statusChange.to]}
+                        {stages.label(u.statusChange.to)}
                       </span>
                       <span className="text-muted">(off by default; your status is never overwritten silently)</span>
                     </label>

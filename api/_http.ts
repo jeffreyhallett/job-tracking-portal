@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { ZodType } from "zod";
 import type { ApplicationRow } from "../db/schema.js";
+import type { StageSet } from "../shared/stages.js";
 import type { Application, WorkModel } from "../shared/types.js";
-import { isStatus } from "../shared/types.js";
 import { HttpError } from "./_error.js";
 
 /** Wraps a handler with uniform error handling. */
@@ -62,13 +62,25 @@ export function paramId(req: VercelRequest): string {
   return value;
 }
 
+/**
+ * Reject a status that is not in the caller's own pipeline. The DB constraint can
+ * only police the shape of an id, because which ids are real is per-user data;
+ * this is the membership half, and every write path goes through it.
+ */
+export function assertStage(stages: StageSet, status: string | undefined): void {
+  if (status === undefined) return;
+  if (!stages.has(status)) {
+    throw new HttpError(400, `"${status}" is not one of your pipeline stages (${stages.ids.join(", ")})`);
+  }
+}
+
 /** Convert a DB row to the wire shape: nulls dropped, timestamps as ISO. */
 export function serialize(row: ApplicationRow): Application {
   const out: Application = {
     id: row.id,
     company: row.company,
     role: row.role,
-    status: isStatus(row.status) ? row.status : "interested",
+    status: row.status,
     events: row.events ?? [],
     createdAt: (row.createdAt ?? new Date()).toISOString(),
     updatedAt: (row.updatedAt ?? new Date()).toISOString(),

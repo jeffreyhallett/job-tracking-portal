@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import { STATUSES, type Application, type Status } from "../../shared/types";
+import type { Application, Status } from "../../shared/types";
 import { attentionReasons, describeReason, isSnoozed } from "../../shared/attention";
 import { stageCompletedOn } from "../../shared/timeline";
 import { CompanyMark } from "./CompanyMark";
 import { Icon } from "./Icon";
 import { formatRelativeDays } from "../../shared/dates";
-import { useSession, useStatusLabels } from "../lib/session";
-import { STATUS_COLOR } from "../lib/status";
+import { useStages } from "../lib/session";
 
 type Props = {
   apps: Application[];
@@ -15,23 +14,29 @@ type Props = {
   focusedId: string | null;
   onOpen: (id: string) => void;
   onMove: (id: string, status: Status) => void;
-  /** Opens Settings, from the note about lanes the user hid. */
-  onEditLanes: () => void;
+  /** Opens Settings, from the note about stages the board is not showing. */
+  onEditStages: () => void;
 };
 
 const DRAG_MIME = "text/plain";
 
-export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditLanes }: Props) {
-  const { lanes, visibleLanes } = useSession();
+export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditStages }: Props) {
+  const stages = useStages();
   const [over, setOver] = useState<Status | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
-  const byStatus = new Map<Status, Application[]>(STATUSES.map((s) => [s, []]));
-  for (const a of apps) byStatus.get(a.status)?.push(a);
+  const byStatus = new Map<Status, Application[]>(stages.ids.map((id) => [id, []]));
+  for (const a of apps) {
+    const bucket = byStatus.get(a.status);
+    if (bucket) bucket.push(a);
+    else byStatus.set(a.status, [a]); // a stage the pipeline no longer has
+  }
 
-  // A hidden lane must never swallow rows silently, so anything sitting in one
-  // gets a muted column at the end that says so and offers a way back.
-  const hidden = lanes.filter((lane) => lane.hidden && (byStatus.get(lane.status)?.length ?? 0) > 0);
+  // A stage the board is not showing must never swallow rows silently, so
+  // anything sitting in one gets a muted column at the end that says so.
+  const offBoard = [...byStatus.entries()]
+    .filter(([id, rows]) => rows.length > 0 && (stages.isUnknown(id) || stages.get(id).hidden))
+    .map(([id, rows]) => ({ id, label: stages.label(id), count: rows.length, unknown: stages.isUnknown(id) }));
 
   const onDrop = (e: DragEvent, status: Status) => {
     e.preventDefault();
@@ -44,7 +49,7 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditLane
   return (
     <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
       <div className="flex h-full gap-3 px-4 sm:px-6 pb-4 min-w-max">
-        {visibleLanes.map(({ status, label }) => {
+        {stages.visible.map(({ id: status, label, color }) => {
           const col = byStatus.get(status) ?? [];
           const isOver = over === status;
           return (
@@ -63,7 +68,7 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditLane
               onDrop={(e) => onDrop(e, status)}
             >
               <header className="flex items-center gap-2 h-11 px-3.5 shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full ring-4" style={{ backgroundColor: STATUS_COLOR[status], ["--tw-ring-color" as string]: `color-mix(in srgb, ${STATUS_COLOR[status]} 22%, transparent)` }} />
+                <span className="w-2.5 h-2.5 rounded-full ring-4" style={{ backgroundColor: color, ["--tw-ring-color" as string]: `color-mix(in srgb, ${color} 22%, transparent)` }} />
                 <span className="text-[13px] font-semibold tracking-[-0.01em] truncate">{label}</span>
                 <span className="ml-auto badge badge-muted tabular-nums">{col.length}</span>
               </header>
@@ -95,22 +100,24 @@ export function Board({ apps, errors, now, focusedId, onOpen, onMove, onEditLane
           );
         })}
 
-        {hidden.length > 0 && (
-          <section aria-label="Hidden lanes" className="lane flex flex-col w-[200px] h-full">
+        {offBoard.length > 0 && (
+          <section aria-label="Stages not shown" className="lane flex flex-col w-[210px] h-full">
             <header className="flex items-center gap-2 h-11 px-3.5 shrink-0 text-muted">
               <Icon name="eyeOff" size={14} />
-              <span className="text-[13px] font-semibold tracking-[-0.01em]">Hidden</span>
+              <span className="text-[13px] font-semibold tracking-[-0.01em]">Not shown</span>
             </header>
             <div className="px-3.5 pb-3 flex flex-col gap-2 text-[12px] text-fg-2">
-              {hidden.map((lane) => (
-                <div key={lane.status} className="flex items-center gap-2">
-                  <span className="truncate">{lane.label}</span>
-                  <span className="badge badge-muted tabular-nums ml-auto">{byStatus.get(lane.status)?.length ?? 0}</span>
+              {offBoard.map((stage) => (
+                <div key={stage.id} className="flex items-center gap-2">
+                  <span className="truncate" title={stage.unknown ? "This stage is no longer in your pipeline" : "Hidden"}>
+                    {stage.label}
+                  </span>
+                  <span className="badge badge-muted tabular-nums ml-auto">{stage.count}</span>
                 </div>
               ))}
-              <button type="button" className="btn btn-ghost btn-sm self-start -ml-2" onClick={onEditLanes}>
+              <button type="button" className="btn btn-ghost btn-sm self-start -ml-2" onClick={onEditStages}>
                 <Icon name="settings" size={13} />
-                Edit lanes
+                Edit pipeline
               </button>
             </div>
           </section>
@@ -132,11 +139,11 @@ type CardProps = {
 };
 
 function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragEnd }: CardProps) {
-  const labels = useStatusLabels();
-  const reasons = attentionReasons(app, now);
+  const stages = useStages();
+  const reasons = attentionReasons(app, stages, now);
   const attention = reasons.map(describeReason).join(", ");
   const snoozed = isSnoozed(app, now);
-  const completedOn = stageCompletedOn(app);
+  const completedOn = stageCompletedOn(app, stages);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: "nearest" });
@@ -179,7 +186,7 @@ function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragE
               {formatRelativeDays(app.nextActionDate, now)}
             </span>
           )}
-          {!app.nextActionDate && app.deadline && app.status === "interested" && !reasons.some((r) => r.kind === "deadline_soon") && (
+          {!app.nextActionDate && app.deadline && stages.isLead(app.status) && !reasons.some((r) => r.kind === "deadline_soon") && (
             <span className="inline-flex items-center gap-0.5">
               <Icon name="calendar" size={12} />
               {formatRelativeDays(app.deadline, now)}
@@ -195,7 +202,7 @@ function Card({ app, now, error, focused, dragging, onOpen, onDragStart, onDragE
       {(reasons.length > 0 || snoozed || completedOn) && (
         <div className="mt-2 flex items-center gap-1 flex-wrap">
           {completedOn && (
-            <span className="badge badge-ok" title={`${labels[app.status]} completed ${completedOn}`}>
+            <span className="badge badge-ok" title={`${stages.label(app.status)} completed ${completedOn}`}>
               <Icon name="check" size={12} strokeWidth={2} />
               done
             </span>

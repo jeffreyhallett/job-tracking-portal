@@ -1,5 +1,6 @@
 import { TABLE_COLUMNS, type TableColumnKey } from "../../shared/prefs";
-import type { Application, Status } from "../../shared/types";
+import type { StageSet } from "../../shared/stages";
+import type { Application } from "../../shared/types";
 
 /** Every column except `tags`, which is an array and has no useful order. */
 export type SortKey = Exclude<TableColumnKey, "tags">;
@@ -9,12 +10,10 @@ export const SORT_KEYS: SortKey[] = TABLE_COLUMNS.filter((c) => c.sortable).map(
 
 export const DEFAULT_SORT: Sort = { key: "updatedAt", dir: "desc" };
 
-export type StatusOrder = Record<Status, number>;
-
-function compare(a: Application, b: Application, key: SortKey, statusOrder: StatusOrder): number {
-  // Sorting by status follows the user's own lane order, so the table and the
-  // board agree about what "earlier in the pipeline" means.
-  if (key === "status") return (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
+function compare(a: Application, b: Application, key: SortKey, stages: StageSet): number {
+  // Sorting by stage follows the user's own pipeline order, so the table and the
+  // board agree about what "earlier in the process" means.
+  if (key === "status") return stages.order(a.status) - stages.order(b.status);
   const av = a[key] ?? "";
   const bv = b[key] ?? "";
   if (av === "" && bv !== "") return 1; // blanks last
@@ -22,14 +21,14 @@ function compare(a: Application, b: Application, key: SortKey, statusOrder: Stat
   return av.localeCompare(bv, undefined, { sensitivity: "base" });
 }
 
-export function sortApps(apps: readonly Application[], sort: Sort, statusOrder: StatusOrder): Application[] {
+export function sortApps(apps: readonly Application[], sort: Sort, stages: StageSet): Application[] {
   return [...apps].sort((a, b) => {
-    const c = compare(a, b, sort.key, statusOrder);
+    const c = compare(a, b, sort.key, stages);
     return sort.dir === "asc" ? c : -c;
   });
 }
 
 /** Board reading order: pipeline column, then most recently updated first. */
-export function boardOrder(apps: readonly Application[], statusOrder: StatusOrder): Application[] {
-  return [...apps].sort((a, b) => (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0) || b.updatedAt.localeCompare(a.updatedAt));
+export function boardOrder(apps: readonly Application[], stages: StageSet): Application[] {
+  return [...apps].sort((a, b) => stages.order(a.status) - stages.order(b.status) || b.updatedAt.localeCompare(a.updatedAt));
 }

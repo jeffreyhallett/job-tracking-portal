@@ -1,17 +1,22 @@
 import { useMemo, useState } from "react";
 import { MIN_PASSWORD_LENGTH, passwordProblem } from "../../shared/password";
+import { defaultColumnPrefs, type ColumnPref } from "../../shared/prefs";
 import {
-  defaultColumnPrefs,
-  defaultLanePrefs,
-  MAX_LANE_LABEL,
-  type ColumnPref,
-  type LanePref,
-  type UserPrefs,
-} from "../../shared/prefs";
-import { STATUS_LABELS, type Application, type Status } from "../../shared/types";
+  MAX_STAGE_LABEL,
+  MAX_STAGES,
+  PHASE_INFO,
+  STAGE_COLORS,
+  STAGE_PHASES,
+  STAGE_PRESETS,
+  stageIdFor,
+  stagesProblem,
+  suggestColor,
+  type Stage,
+  type StagePhase,
+} from "../../shared/stages";
+import type { Application } from "../../shared/types";
 import { api } from "../api";
-import { useSession } from "../lib/session";
-import { STATUS_COLOR } from "../lib/status";
+import { useSession, type StageReassignment } from "../lib/session";
 import { Icon } from "./Icon";
 import { CopyButton, Modal } from "./ui";
 
@@ -24,7 +29,7 @@ const TABS: { key: Tab; label: string; icon: "columns" | "settings" | "user" | "
   { key: "automations", label: "Automations", icon: "robot" },
 ];
 
-export function Settings({ apps, onClose }: { apps: Application[]; onClose: () => void }) {
+export function Settings({ apps, onReload, onClose }: { apps: Application[]; onReload: () => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("pipeline");
   return (
     <Modal title="Settings" onClose={onClose} wide>
@@ -37,7 +42,7 @@ export function Settings({ apps, onClose }: { apps: Application[]; onClose: () =
             </button>
           ))}
         </div>
-        {tab === "pipeline" && <PipelineTab apps={apps} />}
+        {tab === "pipeline" && <PipelineTab apps={apps} onReload={onReload} />}
         {tab === "columns" && <ColumnsTab />}
         {tab === "account" && <AccountTab />}
         {tab === "automations" && <AutomationsTab />}
@@ -46,165 +51,300 @@ export function Settings({ apps, onClose }: { apps: Application[]; onClose: () =
   );
 }
 
-/** Wraps a savePrefs call so every editor reports failures the same way. */
-function usePrefsWriter() {
-  const { savePrefs } = useSession();
-  const [error, setError] = useState<string | null>(null);
-  const write = (prefs: UserPrefs) => {
-    setError(null);
-    savePrefs(prefs).catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not save"));
-  };
-  return { write, error };
-}
-
 function ErrorLine({ error }: { error: string | null }) {
   if (!error) return null;
   return <div className="badge badge-danger h-auto py-1.5 px-3 whitespace-normal self-start">{error}</div>;
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline lanes: rename, reorder, hide
+// Pipeline: add, rename, recolour, reorder, hide, delete, and say what a stage means
 // ---------------------------------------------------------------------------
 
-function PipelineTab({ apps }: { apps: Application[] }) {
-  const { lanes, user } = useSession();
-  const { write, error } = usePrefsWriter();
+/**
+ * Edited as a draft and saved in one go, unlike the rest of Settings. Adding or
+ * deleting a stage is structural: removing one has to say where its applications
+ * go, and that only makes sense as a single confirmed change.
+ */
+function PipelineTab({ apps, onReload }: { apps: Application[]; onReload: () => void }) {
+  const { stages, user, savePrefs } = useSession();
+  const [draft, setDraft] = useState<Stage[] | null>(null);
+  const [moves, setMoves] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [paletteFor, setPaletteFor] = useState<string | null>(null);
+
+  const current = draft ?? stages.all;
+  const dirty = draft !== null;
 
   const counts = useMemo(() => {
-    const map = new Map<Status, number>();
-    for (const a of apps) map.set(a.status, (map.get(a.status) ?? 0) + 1);
+    const map: Record<string, number> = {};
+    for (const a of apps) map[a.status] = (map[a.status] ?? 0) + 1;
     return map;
   }, [apps]);
 
-  /** Current lane order as prefs, so each edit can be expressed as a rewrite. */
-  const current = (): LanePref[] =>
-    lanes.map((lane) => ({
-      status: lane.status,
-      ...(lane.renamed ? { label: lane.label } : {}),
-      ...(lane.hidden ? { hidden: true } : {}),
-    }));
+  /**
+   * Stages that hold applications but will not exist once this draft is saved:
+   * ones being deleted, plus any the pipeline has already lost track of. Each
+   * needs somewhere for its applications to go before Save is allowed.
+   */
+  const stranded = useMemo(() => {
+    const keep = new Set(current.map((s) => s.id));
+    return Object.keys(counts)
+      .filter((id) => !keep.has(id) && (counts[id] ?? 0) > 0)
+      .map((id) => ({ id, label: stages.label(id), count: counts[id] ?? 0 }));
+  }, [counts, current, stages]);
 
-  const commit = (next: LanePref[]) => write({ ...user.prefs, lanes: next });
+  const problem = stagesProblem(current);
+  const unassigned = stranded.filter((s) => !moves[s.id]);
+  const canSave = dirty && !problem && unassigned.length === 0 && !saving;
 
-  /** Blank, or the built-in name, means "no override" rather than an empty lane title. */
-  const rename = (status: Status, label: string) => {
-    const trimmed = label.trim().slice(0, MAX_LANE_LABEL);
-    const custom = trimmed && trimmed !== STATUS_LABELS[status] ? trimmed : undefined;
-    commit(current().map((lane) => (lane.status !== status ? lane : { status, ...(custom ? { label: custom } : {}), ...(lane.hidden ? { hidden: true } : {}) })));
+  const edit = (next: Stage[]) => {
+    setDraft(next);
+    setError(null);
   };
-
-  const toggleHidden = (status: Status) =>
-    commit(current().map((lane) => (lane.status !== status ? lane : { ...lane, hidden: !lane.hidden })));
+  const patch = (id: string, change: Partial<Stage>) => edit(current.map((s) => (s.id === id ? { ...s, ...change } : s)));
 
   const move = (index: number, delta: number) => {
-    const next = current();
+    const next = [...current];
     const to = index + delta;
     const item = next[index];
     const other = next[to];
     if (!item || !other) return;
     next[index] = other;
     next[to] = item;
-    commit(next);
+    edit(next);
   };
 
-  const hiddenWithRows = lanes.filter((l) => l.hidden && (counts.get(l.status) ?? 0) > 0);
+  const addStage = (label: string, phase: StagePhase) => {
+    const id = stageIdFor(label, current.map((s) => s.id));
+    const stage: Stage = { id, label: label.trim().slice(0, MAX_STAGE_LABEL), color: suggestColor(phase, current.map((s) => s.color)), phase };
+    // Slot it before the terminal stages, which belong at the end of a pipeline.
+    const firstClosed = phase === "closed" ? -1 : current.findIndex((s) => s.phase === "closed");
+    edit(firstClosed === -1 ? [...current, stage] : [...current.slice(0, firstClosed), stage, ...current.slice(firstClosed)]);
+  };
+
+  const removeStage = (id: string) => {
+    edit(current.filter((s) => s.id !== id));
+    setPaletteFor(null);
+  };
+
+  const reset = () => {
+    setDraft(null);
+    setMoves({});
+    setError(null);
+    setPaletteFor(null);
+  };
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    const reassign: StageReassignment[] = stranded.flatMap((s) => {
+      const to = moves[s.id];
+      return to ? [{ from: s.id, to }] : [];
+    });
+    try {
+      await savePrefs({ ...user.prefs, stages: current }, reassign);
+      reset();
+      // The server moved rows between stages; the local copies are stale.
+      if (reassign.length) onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save the pipeline");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[12px] text-fg-2">
-        Rename the lanes to match how you actually talk about your search, move them into the order you work in, and hide the ones you never use. These are yours alone —
-        nobody else&apos;s board changes.
+        Your pipeline, yours alone — nobody else&apos;s board changes. Add the stages your process actually has, drop the ones it does not, and tell the app what each one means
+        so the stale flags and the response rate still make sense.
       </p>
-      <ErrorLine error={error} />
+      <ErrorLine error={error ?? problem} />
 
       <ul className="flex flex-col gap-1.5">
-        {lanes.map((lane, i) => {
-          const count = counts.get(lane.status) ?? 0;
+        {current.map((stage, i) => {
+          const count = counts[stage.id] ?? 0;
+          const info = PHASE_INFO[stage.phase];
           return (
-            <li key={lane.status} className={`tile flex items-center gap-2 p-2 ${lane.hidden ? "opacity-60" : ""}`}>
-              <span className="flex flex-col shrink-0">
+            <li key={stage.id} className={`tile p-2 flex flex-col gap-2 ${stage.hidden ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-2">
+                <span className="flex flex-col shrink-0">
+                  <button type="button" className="btn btn-ghost btn-icon w-6 h-5 text-muted" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${stage.label} earlier`}>
+                    <Icon name="arrowUp" size={13} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon w-6 h-5 text-muted"
+                    onClick={() => move(i, 1)}
+                    disabled={i === current.length - 1}
+                    aria-label={`Move ${stage.label} later`}
+                  >
+                    <Icon name="arrowDown" size={13} strokeWidth={2} />
+                  </button>
+                </span>
+
                 <button
                   type="button"
-                  className="btn btn-ghost btn-icon w-6 h-5 text-muted"
-                  onClick={() => move(i, -1)}
-                  disabled={i === 0}
-                  aria-label={`Move ${lane.label} earlier`}
+                  className="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center"
+                  style={{ boxShadow: `inset 0 0 0 2px ${stage.color}` }}
+                  onClick={() => setPaletteFor(paletteFor === stage.id ? null : stage.id)}
+                  aria-label={`Colour for ${stage.label}`}
+                  aria-expanded={paletteFor === stage.id}
                 >
-                  <Icon name="arrowUp" size={13} strokeWidth={2} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                </button>
+
+                <StageNameInput stage={stage} onCommit={(label) => patch(stage.id, { label })} />
+
+                <span className="badge badge-muted tabular-nums shrink-0" title={`${count} application${count === 1 ? "" : "s"} in this stage`}>
+                  {count}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon w-8 h-8 text-muted shrink-0"
+                  onClick={() => patch(stage.id, { hidden: !stage.hidden })}
+                  aria-pressed={stage.hidden === true}
+                  title={stage.hidden ? "Show on the board" : "Hide from the board"}
+                >
+                  <Icon name={stage.hidden ? "eyeOff" : "eye"} size={16} />
                 </button>
                 <button
                   type="button"
-                  className="btn btn-ghost btn-icon w-6 h-5 text-muted"
-                  onClick={() => move(i, 1)}
-                  disabled={i === lanes.length - 1}
-                  aria-label={`Move ${lane.label} later`}
+                  className="btn btn-ghost btn-icon w-8 h-8 text-danger shrink-0"
+                  onClick={() => removeStage(stage.id)}
+                  disabled={current.length === 1}
+                  title={count > 0 ? `Delete — you will be asked where its ${count} application${count === 1 ? "" : "s"} should go` : "Delete this stage"}
+                  aria-label={`Delete ${stage.label}`}
                 >
-                  <Icon name="arrowDown" size={13} strokeWidth={2} />
+                  <Icon name="trash" size={15} />
                 </button>
-              </span>
-              <span
-                className="w-2.5 h-2.5 rounded-full ring-4 shrink-0"
-                style={{ backgroundColor: STATUS_COLOR[lane.status], ["--tw-ring-color" as string]: `color-mix(in srgb, ${STATUS_COLOR[lane.status]} 22%, transparent)` }}
-                aria-hidden
-              />
-              <LaneNameInput lane={lane} onCommit={(value) => rename(lane.status, value)} />
-              <span className="badge badge-muted tabular-nums shrink-0" title={`${count} application${count === 1 ? "" : "s"} in this lane`}>
-                {count}
-              </span>
-              {lane.renamed && (
-                <button type="button" className="btn btn-ghost btn-sm text-muted shrink-0" onClick={() => rename(lane.status, "")} title={`Restore the default name, ${STATUS_LABELS[lane.status]}`}>
-                  <Icon name="undo" size={13} />
-                </button>
+              </div>
+
+              {paletteFor === stage.id && (
+                <div className="flex items-center gap-1.5 flex-wrap pl-8">
+                  {STAGE_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      className="w-6 h-6 rounded-full"
+                      style={{ backgroundColor: c.value, boxShadow: stage.color === c.value ? "0 0 0 2px var(--c-fg)" : "none" }}
+                      title={c.name}
+                      aria-label={c.name}
+                      aria-pressed={stage.color === c.value}
+                      onClick={() => {
+                        patch(stage.id, { color: c.value });
+                        setPaletteFor(null);
+                      }}
+                    />
+                  ))}
+                </div>
               )}
-              <button
-                type="button"
-                className="btn btn-ghost btn-icon w-8 h-8 text-muted shrink-0"
-                onClick={() => toggleHidden(lane.status)}
-                aria-pressed={lane.hidden}
-                title={lane.hidden ? "Show this lane" : "Hide this lane"}
-              >
-                <Icon name={lane.hidden ? "eyeOff" : "eye"} size={16} />
-              </button>
+
+              <div className="pl-8 flex flex-col gap-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    className="input h-8 text-[12px] w-auto"
+                    value={stage.phase}
+                    aria-label={`What ${stage.label} means`}
+                    onChange={(e) => patch(stage.id, { phase: e.target.value as StagePhase, completable: undefined })}
+                  >
+                    {STAGE_PHASES.map((phase) => (
+                      <option key={phase} value={phase}>
+                        {PHASE_INFO[phase].title}
+                      </option>
+                    ))}
+                  </select>
+                  {stage.phase !== "closed" && stage.phase !== "lead" && (
+                    <label className="flex items-center gap-1.5 text-[12px] text-fg-2 cursor-pointer">
+                      <input type="checkbox" checked={stage.completable ?? stage.phase === "active"} onChange={(e) => patch(stage.id, { completable: e.target.checked })} />
+                      Can be marked complete
+                    </label>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted">{info.effects.join(" · ")}</div>
+              </div>
             </li>
           );
         })}
       </ul>
 
-      {hiddenWithRows.length > 0 && (
-        <div className="badge badge-warn h-auto py-1.5 px-3 whitespace-normal self-start">
-          <Icon name="eyeOff" size={12} />
-          {hiddenWithRows.map((l) => `${l.label} (${counts.get(l.status) ?? 0})`).join(", ")} stay off the board. Nothing is deleted, and the table still shows them.
+      <AddStage onAdd={addStage} disabled={current.length >= MAX_STAGES} />
+
+      {stranded.length > 0 && (
+        <div className="tile p-3 flex flex-col gap-2">
+          <div className="text-[12px] font-medium">Where should these applications go?</div>
+          <p className="text-[12px] text-fg-2">Nothing is deleted. Each application moves to the stage you pick, and its history is rewritten to match.</p>
+          {stranded.map((s) => (
+            <label key={s.id} className="flex items-center gap-2 text-[12px] flex-wrap">
+              <span className="min-w-[140px]">
+                {s.label} <span className="text-muted tabular-nums">({s.count})</span>
+              </span>
+              <span className="text-muted">→</span>
+              <select className="input h-8 text-[12px] w-auto" value={moves[s.id] ?? ""} onChange={(e) => setMoves((m) => ({ ...m, [s.id]: e.target.value }))}>
+                <option value="">Choose a stage…</option>
+                {current.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => commit(defaultLanePrefs())}>
-          <Icon name="undo" size={13} />
-          Restore default names and order
-        </button>
+      {dirty && (
+        <div className="flex items-center gap-2 flex-wrap border-t border-line pt-3">
+          <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={!canSave}>
+            {saving ? "Saving…" : "Save pipeline"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={reset} disabled={saving}>
+            Discard changes
+          </button>
+          {unassigned.length > 0 && <span className="text-[12px] text-warn">Say where {unassigned.map((s) => s.label).join(", ")} should move first.</span>}
+        </div>
+      )}
+
+      <div className="border-t border-line pt-3 flex flex-col gap-2">
+        <div className="section-title">Start from a template</div>
+        <div className="flex flex-col gap-1.5">
+          {STAGE_PRESETS.map((preset) => (
+            <div key={preset.key} className="flex items-center gap-2 flex-wrap text-[12px]">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => edit(preset.stages.map((s) => ({ ...s })))}>
+                {preset.name}
+              </button>
+              <span className="text-muted">{preset.description}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted">
+          A template replaces the pipeline in the editor above; nothing is written until you save, and you will be asked where any stranded applications should go.
+        </p>
       </div>
+
       <p className="text-[11px] text-muted">
-        Renaming is cosmetic: the timeline, the stats and the agent API keep using the underlying stage ids, so your history stays intact and nothing breaks if you rename a
-        lane back.
+        Renaming and recolouring are cosmetic: a stage keeps its identity, so your timeline and your stats survive. What a stage <em>means</em> is the phase — that is what
+        decides whether something counts as a response, goes stale when it is quiet, or stops counting as active.
       </p>
     </div>
   );
 }
 
-/** Local draft while typing, committed on blur or Enter (the app's usual idiom). */
-function LaneNameInput({ lane, onCommit }: { lane: { label: string; status: Status }; onCommit: (value: string) => void }) {
+/** Local draft while typing, committed on blur or Enter. */
+function StageNameInput({ stage, onCommit }: { stage: Stage; onCommit: (value: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const value = draft ?? lane.label;
   return (
     <input
       className="input h-8 flex-1 min-w-0 text-[13px]"
-      value={value}
-      maxLength={MAX_LANE_LABEL}
-      aria-label={`Name for the ${STATUS_LABELS[lane.status]} lane`}
-      placeholder={STATUS_LABELS[lane.status]}
+      value={draft ?? stage.label}
+      maxLength={MAX_STAGE_LABEL}
+      aria-label={`Name for the ${stage.label} stage`}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
-        if (draft !== null && draft !== lane.label) onCommit(draft);
+        const next = draft?.trim();
+        if (next && next !== stage.label) onCommit(next);
         setDraft(null);
       }}
       onKeyDown={(e) => {
@@ -218,16 +358,68 @@ function LaneNameInput({ lane, onCommit }: { lane: { label: string; status: Stat
   );
 }
 
+function AddStage({ onAdd, disabled }: { onAdd: (label: string, phase: StagePhase) => void; disabled: boolean }) {
+  const [label, setLabel] = useState("");
+  const [phase, setPhase] = useState<StagePhase>("active");
+
+  const submit = () => {
+    const trimmed = label.trim();
+    if (!trimmed || disabled) return;
+    onAdd(trimmed, phase);
+    setLabel("");
+  };
+
+  return (
+    <div className="flex items-end gap-2 flex-wrap">
+      <label className="flex-1 min-w-[160px]">
+        <span className="label">New stage</span>
+        <input
+          className="input h-8 text-[13px]"
+          placeholder="Portfolio review, Case study, Licensing…"
+          value={label}
+          maxLength={MAX_STAGE_LABEL}
+          disabled={disabled}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+      </label>
+      <label>
+        <span className="label">What it means</span>
+        <select className="input h-8 text-[12px] w-auto" value={phase} disabled={disabled} onChange={(e) => setPhase(e.target.value as StagePhase)}>
+          {STAGE_PHASES.map((p) => (
+            <option key={p} value={p}>
+              {PHASE_INFO[p].title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" className="btn btn-tonal h-8" onClick={submit} disabled={disabled || label.trim() === ""}>
+        <Icon name="plus" size={15} strokeWidth={2.2} />
+        Add
+      </button>
+      <span className="text-[11px] text-muted basis-full">{disabled ? `Limit of ${MAX_STAGES} stages reached.` : PHASE_INFO[phase].blurb}</span>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Table columns
 // ---------------------------------------------------------------------------
 
 function ColumnsTab() {
-  const { columns, user } = useSession();
-  const { write, error } = usePrefsWriter();
+  const { columns, user, savePrefs } = useSession();
+  const [error, setError] = useState<string | null>(null);
 
+  const write = (next: ColumnPref[]) => {
+    setError(null);
+    savePrefs({ ...user.prefs, columns: next }).catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not save"));
+  };
   const current = (): ColumnPref[] => columns.map((c) => ({ key: c.key, ...(c.hidden ? { hidden: true } : {}) }));
-  const commit = (next: ColumnPref[]) => write({ ...user.prefs, columns: next });
 
   const move = (index: number, delta: number) => {
     const next = current();
@@ -237,12 +429,12 @@ function ColumnsTab() {
     if (!item || !other) return;
     next[index] = other;
     next[to] = item;
-    commit(next);
+    write(next);
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[12px] text-fg-2">Which columns the table view shows, and in what order. Status and Company always stay.</p>
+      <p className="text-[12px] text-fg-2">Which columns the table view shows, and in what order. Stage and Company always stay.</p>
       <ErrorLine error={error} />
       <ul className="flex flex-col gap-1.5">
         {columns.map((column, i) => (
@@ -266,7 +458,7 @@ function ColumnsTab() {
                 type="checkbox"
                 checked={!column.hidden}
                 disabled={column.required}
-                onChange={() => commit(current().map((c) => (c.key === column.key ? { ...c, hidden: !column.hidden } : c)))}
+                onChange={() => write(current().map((c) => (c.key === column.key ? { ...c, hidden: !column.hidden } : c)))}
               />
               <span className="truncate">{column.label}</span>
             </label>
@@ -275,11 +467,11 @@ function ColumnsTab() {
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn-ghost btn-sm self-start" onClick={() => commit(defaultColumnPrefs())}>
+      <button type="button" className="btn btn-ghost btn-sm self-start" onClick={() => write(defaultColumnPrefs())}>
         <Icon name="undo" size={13} />
         Restore default columns
       </button>
-      <p className="text-[11px] text-muted">The board view is unaffected; it always follows your pipeline lanes.</p>
+      <p className="text-[11px] text-muted">The board view is unaffected; it always follows your pipeline.</p>
     </div>
   );
 }
@@ -410,7 +602,7 @@ function ChangePasswordForm() {
 // ---------------------------------------------------------------------------
 
 function AutomationsTab() {
-  const { user, setUser } = useSession();
+  const { user, setUser, stages } = useSession();
   const [fresh, setFresh] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -441,7 +633,7 @@ function AutomationsTab() {
     });
 
   const base = typeof window === "undefined" ? "" : window.location.origin;
-  const prompt = agentPrompt(base, fresh ?? "YOUR_AGENT_TOKEN");
+  const prompt = agentPrompt(base, fresh ?? "YOUR_AGENT_TOKEN", stages.visible.map((s) => s.label));
 
   return (
     <div className="flex flex-col gap-4">
@@ -490,7 +682,8 @@ function AutomationsTab() {
           Scheduled task prompt
         </div>
         <p className="text-[12px] text-fg-2">
-          Paste into a Claude scheduled task{fresh ? " — your new token is already filled in" : ", then replace YOUR_AGENT_TOKEN"}.
+          Paste into a Claude scheduled task{fresh ? " — your new token is already filled in" : ", then replace YOUR_AGENT_TOKEN"}. It reads your pipeline from the API, so it
+          speaks your stage names.
         </p>
         <pre className="tile p-3 text-[11px] whitespace-pre-wrap break-words max-h-64 overflow-y-auto">{prompt}</pre>
         <CopyButton text={prompt} label="Copy prompt" icon="copy" className="btn-tonal self-start" />
@@ -499,12 +692,16 @@ function AutomationsTab() {
   );
 }
 
-function agentPrompt(base: string, token: string): string {
+function agentPrompt(base: string, token: string, stageLabels: string[]): string {
   return `You maintain my job application tracker. Base URL: ${base}
 Auth: send header "Authorization: Bearer ${token}" on every request.
 
 1. GET /api/agent/digest
-2. Use the lane names in user.statusLabels when you write to me; I may have renamed them.
+2. My pipeline is mine, not a standard one — right now: ${stageLabels.join(" -> ")}.
+   Read user.stages from the response for the current list: each entry has an id
+   (what you send in a PATCH), a label (what you call it when writing to me), and a
+   phase saying what it means ("active" = in progress with them, "closed" = over).
+   Never suggest moving a row into a stage marked hidden.
 3. Write me a short update, plain text, in this order and only if non-empty:
    - Needs attention: one line each, "Company - Role: reason". Suggest the single most useful next step. If the item has contacts, name who to write to and how long since lastContact.
    - Deadlines in the next 14 days.

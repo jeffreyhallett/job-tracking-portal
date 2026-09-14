@@ -75,7 +75,7 @@ export default function App() {
 }
 
 function Tracker() {
-  const { user, visibleLanes, statusOrder } = useSession();
+  const { user, stages } = useSession();
   const store = useApplications();
   const { apps, owner, loaded, loadError, errors, toast } = store.state;
 
@@ -102,14 +102,14 @@ function Tracker() {
     return () => window.clearInterval(t);
   }, []);
 
-  const attentionCount = useMemo(() => apps.filter((a) => needsAttention(a, now)).length, [apps, now]);
-  const filtered = useMemo(() => applyFilters(apps, filters, now), [apps, filters, now]);
+  const attentionCount = useMemo(() => apps.filter((a) => needsAttention(a, stages, now)).length, [apps, stages, now]);
+  const filtered = useMemo(() => applyFilters(apps, filters, stages, now), [apps, filters, stages, now]);
   const ordered = useMemo(
-    () => (effectiveView === "board" ? boardOrder(filtered, statusOrder) : sortApps(filtered, sort, statusOrder)),
-    [filtered, effectiveView, sort, statusOrder],
+    () => (effectiveView === "board" ? boardOrder(filtered, stages) : sortApps(filtered, sort, stages)),
+    [filtered, effectiveView, sort, stages],
   );
-  const stats = useMemo(() => computeStats(apps), [apps]);
-  const weeks = useMemo(() => weeklyFunnel(apps, 8, now), [apps, now]);
+  const stats = useMemo(() => computeStats(apps, stages), [apps, stages]);
+  const weeks = useMemo(() => weeklyFunnel(apps, stages, 8, now), [apps, stages, now]);
   const tags = useMemo(() => allTags(apps), [apps]);
   const selected = selectedId ? (apps.find((a) => a.id === selectedId) ?? null) : null;
 
@@ -158,16 +158,16 @@ function Tracker() {
         else if (selectedId || creating) closeDrawer();
         else setFocusedId(null);
       },
-      // 1..9 follow the lanes the user sees, in their order.
+      // 1..9 follow the stages the user sees, in their order.
       setStatusIndex: (i) => {
         const id = target();
-        const status = visibleLanes[i]?.status;
+        const status = stages.visible[i]?.id;
         if (id && status) store.setStatus(id, status);
       },
       toggleStageDone: () => {
         const id = target();
         const app = id ? apps.find((a) => a.id === id) : undefined;
-        if (app) store.setStageDone(app.id, stageCompletedOn(app) === undefined);
+        if (app) store.setStageDone(app.id, stageCompletedOn(app, stages) === undefined);
       },
       snooze: () => {
         const id = target();
@@ -178,7 +178,7 @@ function Tracker() {
       },
       help: () => setHelpOpen((h) => !h),
     };
-  }, [apps, ordered, focusedId, selectedId, creating, syncOpen, helpOpen, settingsOpen, narrow, open, closeDrawer, store, visibleLanes]);
+  }, [apps, ordered, focusedId, selectedId, creating, syncOpen, helpOpen, settingsOpen, narrow, open, closeDrawer, store, stages]);
   useShortcuts(shortcuts);
 
   return (
@@ -227,7 +227,7 @@ function Tracker() {
           </div>
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "board" && (
-          <Board apps={filtered} errors={errors} now={now} focusedId={focusedId} onOpen={open} onMove={onMove} onEditLanes={openSettings} />
+          <Board apps={filtered} errors={errors} now={now} focusedId={focusedId} onOpen={open} onMove={onMove} onEditStages={openSettings} />
         )}
         {loaded && !loadError && apps.length > 0 && effectiveView === "table" && (
           <TableView apps={filtered} errors={errors} now={now} sort={sort} onSort={setSort} focusedId={focusedId} onOpen={open} onStatus={onMove} />
@@ -249,7 +249,7 @@ function Tracker() {
       )}
       {(selected || creating) && <Drawer app={creating ? null : selected} store={store} now={now} onClose={closeDrawer} />}
       {syncOpen && <SyncModal apps={apps} store={store} onClose={closeSync} />}
-      {settingsOpen && <Settings apps={apps} onClose={closeSettings} />}
+      {settingsOpen && <Settings apps={apps} onReload={() => void store.reload()} onClose={closeSettings} />}
       {helpOpen && <ShortcutsHelp onClose={closeHelp} />}
       <Toast toast={toast} onDismiss={store.dismissToast} />
     </>

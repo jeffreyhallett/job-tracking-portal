@@ -1,7 +1,7 @@
 import { useState, type RefObject } from "react";
 import type { Status } from "../../shared/types";
 import { EMPTY_FILTERS, isFiltering, type Filters } from "../lib/filters";
-import { useSession } from "../lib/session";
+import { useStages } from "../lib/session";
 import { Icon } from "./Icon";
 import { StatusDot } from "./ui";
 
@@ -10,11 +10,11 @@ type Props = { filters: Filters; onChange: (f: Filters) => void; tags: string[];
 const TAG_LIST_ID = "tag-filters";
 
 export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
-  // Filtering offers the lanes the user kept, in their order. A status they
-  // hid is still filterable if it is already selected, so a saved filter never
-  // becomes impossible to clear.
-  const { lanes: allLanes } = useSession();
-  const lanes = allLanes.filter((lane) => !lane.hidden || filters.statuses.has(lane.status));
+  // Filtering offers the stages the user kept, in their order. A hidden stage is
+  // still offered while it is selected, so a filter can never become impossible
+  // to clear.
+  const stages = useStages();
+  const chips = stages.all.filter((stage) => !stage.hidden || filters.statuses.has(stage.id));
   // Tags are a long, noisy row on a well-tagged list, so they stay folded away
   // until asked for. The toggle keeps the active count while it is closed.
   const [showTags, setShowTags] = useState(false);
@@ -60,16 +60,16 @@ export function FilterBar({ filters, onChange, tags, searchRef }: Props) {
         )}
       </div>
       <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
-        {lanes.map((lane) => (
+        {chips.map((stage) => (
           <button
-            key={lane.status}
+            key={stage.id}
             type="button"
-            className={`chip ${filters.statuses.has(lane.status) ? "chip-on" : ""}`}
-            aria-pressed={filters.statuses.has(lane.status)}
-            onClick={() => toggleStatus(lane.status)}
+            className={`chip ${filters.statuses.has(stage.id) ? "chip-on" : ""}`}
+            aria-pressed={filters.statuses.has(stage.id)}
+            onClick={() => toggleStatus(stage.id)}
           >
-            <StatusDot status={lane.status} className="w-1.5 h-1.5" />
-            {lane.label}
+            <StatusDot status={stage.id} className="w-1.5 h-1.5" />
+            {stage.label}
           </button>
         ))}
         {tags.length > 0 && (

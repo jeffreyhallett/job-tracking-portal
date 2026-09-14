@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { statusEventLabel, todayISO, type Application, type ApplicationEvent, type ApplicationInput, type ApplicationPatch, type BulkRequest, type Status } from "../../shared/types";
+import { statusEvent, todayISO, type Application, type ApplicationEvent, type ApplicationInput, type ApplicationPatch, type BulkRequest, type Status } from "../../shared/types";
 import { toISODate } from "../../shared/dates";
+import type { StageSet } from "../../shared/stages";
 import { isCompletableStage, stageCompletedOn, withStageDone, withoutStageDone } from "../../shared/timeline";
 import { api } from "../api";
-import { useStatusLabels } from "../lib/session";
+import { useStages } from "../lib/session";
 
 export type Toast = { id: number; message: string; undo?: () => void };
 
@@ -74,17 +75,17 @@ export function applyPatch(app: Application, patch: ApplicationPatch): Applicati
   return next;
 }
 
-/** Build the patch for a status change: the event is appended automatically. */
-export function statusPatch(app: Application, status: Status): ApplicationPatch {
+/** Build the patch for a stage change: the event is appended automatically. */
+export function statusPatch(app: Application, status: Status, stages: StageSet): ApplicationPatch {
   const today = todayISO();
   const patch: ApplicationPatch = {
     status,
-    events: [...app.events, { date: today, label: statusEventLabel(status) }],
+    events: [...app.events, statusEvent(status, today, stages)],
   };
-  if (status === "applied" && !app.appliedDate) patch.appliedDate = today;
-  // Back to Interested walks the apply itself back, so the row stops counting
-  // as applied; Undo on the toast restores the date.
-  if (status === "interested") patch.appliedDate = null;
+  if (stages.isWaiting(status) && !app.appliedDate) patch.appliedDate = today;
+  // Back to a "not applied yet" stage walks the apply itself back, so the row
+  // stops counting as applied; Undo on the toast restores the date.
+  if (stages.isLead(status)) patch.appliedDate = null;
   return patch;
 }
 
@@ -95,8 +96,9 @@ const DELETE_GRACE_MS = 6000;
 
 export function useApplications() {
   const [state, dispatch] = useReducer(reducer, { apps: [], loaded: false, errors: {} });
-  // Toasts name the stage the way the user renamed it.
-  const labels = useStatusLabels();
+  // Toasts, timeline entries and the applied-date rules all read the user's
+  // own pipeline rather than a fixed set of stage names.
+  const stages = useStages();
   const timers = useRef(new Map<string, number>());
   const toastSeq = useRef(0);
   const toastTimer = useRef<number | null>(null);
@@ -161,27 +163,27 @@ export function useApplications() {
     (id: string, status: Status) => {
       const app = state.apps.find((a) => a.id === id);
       if (!app || app.status === status) return;
-      update(id, statusPatch(app, status));
-      showToast(`${app.company} moved to ${labels[status]}`, () =>
+      update(id, statusPatch(app, status, stages));
+      showToast(`${app.company} moved to ${stages.label(status)}`, () =>
         update(id, { status: app.status, events: app.events, appliedDate: app.appliedDate ?? null }),
       );
     },
-    [state.apps, update, showToast, labels],
+    [state.apps, update, showToast, stages],
   );
 
-  /** Mark the current stage (OA, phone screen, onsite) done, or undo that. */
+  /** Mark the current stage done (if it is one you can sit), or undo that. */
   const setStageDone = useCallback(
     (id: string, done: boolean) => {
       const app = state.apps.find((a) => a.id === id);
-      if (!app || !isCompletableStage(app)) return;
-      if (done === (stageCompletedOn(app) !== undefined)) return;
-      update(id, { events: done ? withStageDone(app) : withoutStageDone(app) });
-      const stage = labels[app.status];
+      if (!app || !isCompletableStage(app, stages)) return;
+      if (done === (stageCompletedOn(app, stages) !== undefined)) return;
+      update(id, { events: done ? withStageDone(app, stages) : withoutStageDone(app, stages) });
+      const stage = stages.label(app.status);
       showToast(done ? `${app.company}: ${stage} marked complete` : `${app.company}: ${stage} no longer complete`, () =>
         update(id, { events: app.events }),
       );
     },
-    [state.apps, update, showToast, labels],
+    [state.apps, update, showToast, stages],
   );
 
   /** Optimistic delete with an undo window; the DELETE only goes out after it closes. */
@@ -240,6 +242,12 @@ export function useApplications() {
     return saved;
   }, []);
 
+  /** Re-fetch everything. Used after the server moved rows between stages. */
+  const reload = useCallback(async () => {
+    const { apps, owner } = await api.list();
+    dispatch({ type: "loaded", apps, owner });
+  }, []);
+
   const bulk = useCallback(async (body: BulkRequest) => {
     const result = await api.bulk(body);
     dispatch({ type: "upsertMany", apps: [...result.created, ...result.updated] });
@@ -259,7 +267,7 @@ export function useApplications() {
     return () => window.removeEventListener("pagehide", flush);
   }, []);
 
-  return { state, update, setStatus, setStageDone, remove, snooze, addEvent, create, bulk, dismissToast };
+  return { state, update, setStatus, setStageDone, remove, snooze, addEvent, create, bulk, reload, dismissToast };
 }
 
 export type Store = ReturnType<typeof useApplications>;

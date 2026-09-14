@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { buildBulkRequest, defaultSelection, parsePaste, planImport, type ImportPlan } from "../../shared/import.js";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { applyBulk } from "../_apply.js";
 import { openDb } from "../_db.js";
 import { parseBody, route } from "../_http.js";
@@ -44,11 +45,13 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
 
   const { db, close } = openDb();
   try {
-    const { id: ownerId } = await requireUser(req, db);
+    const user = await requireUser(req, db);
+    const ownerId = user.id;
+    const stages = resolveUserStages(user.prefs);
     const existing = await loadAll(db, ownerId);
     const parsed = parsePaste(JSON.stringify(rows));
     if (parsed.fatal) throw new HttpError(400, parsed.fatal);
-    const plan = planImport(parsed, existing);
+    const plan = planImport(parsed, existing, stages);
     const sel = defaultSelection(plan);
     if (acceptStatus) for (const u of plan.updates) if (u.statusChange) sel.acceptStatus.add(u.existing.id);
 
@@ -74,7 +77,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     };
 
     if (!dryRun) {
-      const result = await applyBulk(db, ownerId, buildBulkRequest(plan, sel));
+      const result = await applyBulk(db, ownerId, buildBulkRequest(plan, sel, stages), stages);
       summary.created = result.created.map((a) => ({ id: a.id, company: a.company, role: a.role }));
     }
     res.status(dryRun ? 200 : 201).json(summary);

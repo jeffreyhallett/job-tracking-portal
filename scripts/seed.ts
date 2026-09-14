@@ -26,24 +26,43 @@ if (!url) throw new Error("DATABASE_URL is not set");
 const sql = neon(url);
 console.log(`database: ${describe(url)}`);
 
-const { id: ownerId, email: ownerEmail } = await resolveOwner();
+const { id: ownerId, email: ownerEmail, prefs } = await resolveOwner();
+const startStage = stageForPhase(prefs, "lead", "interested");
+const appliedStage = stageForPhase(prefs, "waiting", "applied");
 console.log(`account:  ${ownerEmail}`);
+console.log(`stages:   ${startStage} -> ${appliedStage}`);
+
+/**
+ * The account's first stage of the given phase, so the samples land somewhere
+ * that exists even when the pipeline is nothing like the default one.
+ *
+ * A tiny stand-in for StageSet: the script cannot import shared/stages.ts, whose
+ * `./x.js` specifiers plain Node does not resolve.
+ */
+function stageForPhase(prefs: Prefs, phase: string, fallback: string): string {
+  const stages = Array.isArray(prefs?.stages) ? prefs.stages : [];
+  const usable = stages.filter((s) => typeof s?.id === "string" && s.hidden !== true);
+  const match = usable.find((s) => s.phase === phase) ?? usable[0];
+  return typeof match?.id === "string" ? match.id : fallback;
+}
+
+type Prefs = { stages?: { id?: unknown; phase?: unknown; hidden?: unknown }[] } | null;
 
 /**
  * The account to seed into: the email on the command line, or the only account
  * there is. Never invents one, so seeding cannot create rows nobody can read.
  */
-async function resolveOwner(): Promise<{ id: string; email: string }> {
+async function resolveOwner(): Promise<{ id: string; email: string; prefs: Prefs }> {
   const requested = process.argv[2] ?? process.env.SEED_EMAIL;
-  type Row = { id: string; email: string };
+  type Row = { id: string; email: string; prefs: Prefs };
   if (requested) {
     const email = normalizeEmail(requested);
-    const rows = (await sql`select id, email from users where email = ${email} limit 1`) as Row[];
+    const rows = (await sql`select id, email, prefs from users where email = ${email} limit 1`) as Row[];
     const row = rows[0];
     if (!row) throw new Error(`no account for ${email} — create one with: npm run user:add -- ${email}`);
     return row;
   }
-  const rows = (await sql`select id, email from users order by created_at limit 2`) as Row[];
+  const rows = (await sql`select id, email, prefs from users order by created_at limit 2`) as Row[];
   if (rows.length === 0) throw new Error("no accounts yet — create one with: npm run user:add -- you@example.com");
   const [first, second] = rows;
   if (second) throw new Error("more than one account exists — say which: npm run db:seed -- you@example.com");
@@ -69,6 +88,12 @@ function daysAhead(n: number): string {
   return daysAgo(-n);
 }
 
+/** A status-change timeline entry, matching what the app writes. */
+function statusEvent(status: string, date: string): { date: string; label: string; status: string; kind: "status" } {
+  const label = status.replace(/_/g, " ");
+  return { date, label: `Status: ${label.charAt(0).toUpperCase()}${label.slice(1)}`, status, kind: "status" };
+}
+
 type SeedRow = {
   company: string;
   role: string;
@@ -81,7 +106,7 @@ type SeedRow = {
   deadline?: string;
   tags: string[];
   notes?: string;
-  events: { date: string; label: string }[];
+  events: { date: string; label: string; status: string; kind: "status" }[];
   updatedAt: string; // ISO timestamp
 };
 
@@ -93,24 +118,21 @@ const rows: SeedRow[] = [
     workModel: "onsite",
     url: "https://www.instalily.ai/careers",
     source: "career site",
-    status: "interested",
+    status: startStage,
     deadline: daysAhead(4),
     tags: ["startup", "nyc", "ai"],
     notes: "Small team, AI agents for distributors. Deadline is soft but apply early.",
-    events: [{ date: daysAgo(2), label: "Status: Interested" }],
+    events: [statusEvent(startStage, daysAgo(2))],
     updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
   },
   {
     company: "Amazon",
     role: "SDE I, Leo",
     source: "career site",
-    status: "applied",
+    status: appliedStage,
     appliedDate: daysAgo(20),
     tags: ["big-tech"],
-    events: [
-      { date: daysAgo(21), label: "Status: Interested" },
-      { date: daysAgo(20), label: "Status: Applied" },
-    ],
+    events: [statusEvent(startStage, daysAgo(21)), statusEvent(appliedStage, daysAgo(20))],
     // 20 days without movement: shows up under "needs attention" as stale.
     updatedAt: new Date(Date.now() - 20 * 86_400_000).toISOString(),
   },
@@ -118,10 +140,10 @@ const rows: SeedRow[] = [
     company: "Google",
     role: "Software Engineer, New Grad",
     source: "career site",
-    status: "applied",
+    status: appliedStage,
     appliedDate: daysAgo(5),
     tags: ["big-tech"],
-    events: [{ date: daysAgo(5), label: "Status: Applied" }],
+    events: [statusEvent(appliedStage, daysAgo(5))],
     updatedAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
   },
 ];

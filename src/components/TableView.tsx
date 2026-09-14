@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 import { attentionReasons, describeReason, isSnoozed, type AttentionReason } from "../../shared/attention";
 import { daysSince, formatDate, formatRelativeDays } from "../../shared/dates";
 import type { Column, TableColumnKey } from "../../shared/prefs";
+import type { StageSet } from "../../shared/stages";
 import { stageCompletedOn } from "../../shared/timeline";
 import type { Application, Status } from "../../shared/types";
 import { useSession } from "../lib/session";
 import { sortApps, type Sort, type SortKey } from "../lib/sort";
-import { STATUS_COLOR } from "../lib/status";
 import { CompanyMark } from "./CompanyMark";
 import { Icon } from "./Icon";
 import { Caret } from "./ui";
@@ -63,8 +63,8 @@ function cellClass(column: Column): string {
 }
 
 export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, onStatus }: Props) {
-  const { visibleColumns, visibleLanes, labels, statusOrder } = useSession();
-  const sorted = sortApps(apps, sort, statusOrder);
+  const { visibleColumns, stages } = useSession();
+  const sorted = sortApps(apps, sort, stages);
 
   const onHeader = (key: SortKey) => onSort(sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "updatedAt" ? "desc" : "asc" });
 
@@ -96,11 +96,11 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
           </thead>
           <tbody>
             {sorted.map((a) => {
-              const reasons = attentionReasons(a, now);
+              const reasons = attentionReasons(a, stages, now);
               const error = errors[a.id];
               const attention = reasons.map(describeReason).join(", ");
               const snoozed = isSnoozed(a, now);
-              const completedOn = stageCompletedOn(a);
+              const completedOn = stageCompletedOn(a, stages);
               return (
                 <Row
                   key={a.id}
@@ -115,10 +115,10 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                   {visibleColumns.map((c) =>
                     c.key === "status" ? (
                       <td key={c.key} className={`px-2 sm:px-3 py-2 align-top ${cellClass(c)}`} onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-flex items-center" style={{ ["--sc" as string]: STATUS_COLOR[a.status] }}>
+                        <div className="relative inline-flex items-center" style={{ ["--sc" as string]: stages.color(a.status) }}>
                           {/* Phone: readable pill with the native select laid invisibly on top (16px fonts stop Safari zooming). */}
                           <span className="pill sm:hidden max-w-[84px]">
-                            <span className="truncate">{labels[a.status]}</span>
+                            <span className="truncate">{stages.label(a.status)}</span>
                           </span>
                           <select
                             className="pill absolute inset-0 opacity-0 sm:static sm:opacity-100"
@@ -126,10 +126,10 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                             aria-label={`Status for ${a.company}`}
                             onChange={(e) => onStatus(a.id, e.target.value as Status)}
                           >
-                            {/* A row parked in a hidden lane still lists it, or its status could not be read back. */}
-                            {(visibleLanes.some((l) => l.status === a.status) ? visibleLanes : [...visibleLanes, { status: a.status, label: labels[a.status] }]).map((lane) => (
-                              <option key={lane.status} value={lane.status}>
-                                {lane.label}
+                            {/* A row parked in a hidden or removed stage still lists it, or its own value could not be read back. */}
+                            {stageOptions(stages, a.status).map((stage) => (
+                              <option key={stage.id} value={stage.id}>
+                                {stage.label}
                               </option>
                             ))}
                           </select>
@@ -143,7 +143,7 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
                   )}
                   <td className="px-2 py-2 align-top hidden sm:table-cell">
                     {completedOn && (
-                      <span className="badge badge-ok" title={`${labels[a.status]} completed ${completedOn}`}>
+                      <span className="badge badge-ok" title={`${stages.label(a.status)} completed ${completedOn}`}>
                         <Icon name="check" size={12} strokeWidth={2} />
                       </span>
                     )}
@@ -173,6 +173,13 @@ export function TableView({ apps, errors, now, sort, onSort, focusedId, onOpen, 
       </div>
     </div>
   );
+}
+
+/** The stages a row's picker offers: the visible ones, plus its own if that is not among them. */
+export function stageOptions(stages: StageSet, current: string): { id: string; label: string }[] {
+  const options = stages.visible.map((s) => ({ id: s.id, label: s.label }));
+  if (!options.some((o) => o.id === current)) options.push({ id: current, label: stages.label(current) });
+  return options;
 }
 
 /** Deadline and next-action cells turn amber when they are the reason a row needs attention. */

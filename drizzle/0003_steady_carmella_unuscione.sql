@@ -1,0 +1,2 @@
+ALTER TABLE "applications" DROP CONSTRAINT "applications_status_check";--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_status_check" CHECK ("applications"."status" ~ '^[a-z0-9][a-z0-9_]{0,39}$');

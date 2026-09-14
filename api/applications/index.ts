@@ -3,8 +3,9 @@ import { desc, eq } from "drizzle-orm";
 import { applications } from "../../db/schema.js";
 import { applicationInputSchema } from "../../shared/schemas.js";
 import { openDb } from "../_db.js";
-import { parseBody, route, serialize } from "../_http.js";
+import { assertStage, parseBody, route, serialize } from "../_http.js";
 import { HttpError, requireUser } from "../_owner.js";
+import { resolveUserStages } from "../../shared/prefs.js";
 
 // GET  /api/applications  -> every row for the signed-in user
 // POST /api/applications  -> create one
@@ -13,6 +14,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   try {
     const user = await requireUser(req, db);
     const ownerId = user.id;
+    const stages = resolveUserStages(user.prefs);
     if (req.method === "GET") {
       const rows = await db
         .select()
@@ -28,9 +30,10 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
     }
     if (req.method === "POST") {
       const input = parseBody(req, applicationInputSchema);
+      assertStage(stages, input.status);
       const [row] = await db
         .insert(applications)
-        .values({ ...input, ownerId })
+        .values({ ...input, status: input.status ?? stages.initial().id, ownerId })
         .returning();
       if (!row) throw new HttpError(500, "Insert returned nothing");
       res.status(201).json(serialize(row));

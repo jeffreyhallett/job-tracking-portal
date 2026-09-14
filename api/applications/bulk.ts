@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { resolveUserStages } from "../../shared/prefs.js";
 import { bulkRequestSchema } from "../../shared/schemas.js";
 import { applyBulk } from "../_apply.js";
 import { openDb } from "../_db.js";
@@ -16,8 +17,8 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const body = parseBody(req, bulkRequestSchema);
   const { db, close } = openDb();
   try {
-    const { id: ownerId } = await requireUser(req, db);
-    res.status(200).json(await applyBulk(db, ownerId, body));
+    const user = await requireUser(req, db);
+    res.status(200).json(await applyBulk(db, user.id, body, resolveUserStages(user.prefs)));
   } finally {
     await close();
   }

@@ -21,3 +21,5 @@ export function openDb() {
 }
 
 export type Db = ReturnType<typeof openDb>["db"];
+/** The handle inside `db.transaction(...)`. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
