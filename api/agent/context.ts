@@ -15,7 +15,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   }
   const { db, close } = openDb();
   try {
-    const { id: ownerId } = await requireUser(req, db);
+    const { id: ownerId } = await requireUser(req, res, db);
     const apps = await loadAll(db, ownerId);
     res.setHeader("Content-Type", "application/json");
     res.status(200).send(contextForClaude(apps, true));

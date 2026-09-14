@@ -1,6 +1,6 @@
 import type { UserPrefs } from "../shared/prefs";
 import type { Application, ApplicationInput, ApplicationPatch, BulkRequest, BulkResponse } from "../shared/types";
-import type { AuthResponse, ChangePasswordResponse, PublicUser, RotateAgentTokenResponse } from "../shared/user";
+import { SESSION_TOKEN_HEADER, type AuthResponse, type ChangePasswordResponse, type PublicUser, type RotateAgentTokenResponse } from "../shared/user";
 import { getToken, setToken, signOut } from "./auth";
 
 export class ApiError extends Error {
@@ -31,6 +31,11 @@ async function send<T>(path: string, init?: RequestInit): Promise<{ res: Respons
   } catch {
     throw new ApiError(0, "Network error");
   }
+  // The API reissues an ageing session token on any authenticated response; storing
+  // it is what keeps the 90-day window sliding. Read before the 204 early return.
+  const refreshed = res.headers.get(SESSION_TOKEN_HEADER);
+  if (refreshed) setToken(refreshed);
+
   if (res.status === 401 && path !== "/api/auth") signOut();
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -72,7 +77,9 @@ export const api = {
 
   /**
    * A password change invalidates every token this user holds, including the one
-   * we just used, so the fresh token in the response is stored right away.
+   * we just used, so the fresh token in the response is stored right away. It is
+   * stored after send() has handled any refresh header, so the body's token —
+   * signed with the new password hash — is the one that survives.
    */
   changePassword: async (newPassword: string, currentPassword?: string): Promise<PublicUser> => {
     const { user, token } = await request<ChangePasswordResponse>("/api/me", account({ action: "changePassword", newPassword, ...(currentPassword ? { currentPassword } : {}) }));

@@ -15,7 +15,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const id = paramId(req);
   const { db, close } = openDb();
   try {
-    const user = await requireUser(req, db);
+    const user = await requireUser(req, res, db);
     const stages = resolveUserStages(user.prefs);
     const scope = and(eq(applications.id, id), eq(applications.ownerId, user.id));
 

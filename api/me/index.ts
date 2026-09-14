@@ -29,7 +29,7 @@ import { publicUser } from "../_user.js";
 export default route(async (req: VercelRequest, res: VercelResponse) => {
   const { db, close } = openDb();
   try {
-    const user = await requireSessionUser(req, db);
+    const user = await requireSessionUser(req, res, db);
 
     if (req.method === "GET") {
       res.status(200).json(await reload(db, user.id));

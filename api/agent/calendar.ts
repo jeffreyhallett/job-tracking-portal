@@ -18,7 +18,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const { db, close } = openDb();
   try {
     // The only endpoint that takes ?token=: calendar apps cannot send headers.
-    const user = await requireUser(req, db, { allowQueryToken: true });
+    const user = await requireUser(req, res, db, { allowQueryToken: true });
     const apps = await loadAll(db, user.id);
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", 'inline; filename="job-applications.ics"');

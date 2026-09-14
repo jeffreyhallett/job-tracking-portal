@@ -13,6 +13,9 @@ import {
   safeEqual,
   sessionExpired,
   sessionMac,
+  SESSION_MAX_AGE_DAYS,
+  sessionNeedsRefresh,
+  SESSION_REFRESH_AFTER_DAYS,
   sessionToken,
   verifyPassword,
 } from "../shared/crypto.js";
@@ -115,10 +118,54 @@ describe("session tokens", () => {
 
   it("expires after the maximum age, and rejects the future", () => {
     const now = Math.floor(Date.now() / 1000);
+    const daysAgo = (d: number) => now - d * 86_400;
     assert.ok(!sessionExpired(now));
-    assert.ok(!sessionExpired(now - 89 * 86_400));
-    assert.ok(sessionExpired(now - 91 * 86_400));
+    assert.ok(!sessionExpired(daysAgo(SESSION_MAX_AGE_DAYS - 1)));
+    assert.ok(sessionExpired(daysAgo(SESSION_MAX_AGE_DAYS + 1)));
     assert.ok(sessionExpired(now + 3600));
+  });
+});
+
+// The 90 days are a window since last use, not since sign-in: requireUser
+// reissues an ageing token on the response and the client stores it.
+describe("sliding the session window", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const daysAgo = (d: number) => now - d * 86_400;
+  const userId = "6f1e8b02-1111-4222-8333-444455556666";
+  const secret = "server-secret";
+
+  it("leaves a fresh token alone", () => {
+    assert.ok(!sessionNeedsRefresh(now, now));
+    assert.ok(!sessionNeedsRefresh(daysAgo(SESSION_REFRESH_AFTER_DAYS - 1), now));
+  });
+
+  it("reissues one past the threshold", () => {
+    assert.ok(sessionNeedsRefresh(daysAgo(SESSION_REFRESH_AFTER_DAYS + 1), now));
+    assert.ok(sessionNeedsRefresh(daysAgo(SESSION_MAX_AGE_DAYS - 1), now));
+  });
+
+  it("does not try to refresh one that has already expired", () => {
+    // Expired tokens are rejected outright; refreshing one would extend a
+    // session that should have ended.
+    assert.ok(!sessionNeedsRefresh(daysAgo(SESSION_MAX_AGE_DAYS + 1), now));
+    assert.ok(!sessionNeedsRefresh(now + 3600, now));
+  });
+
+  it("refreshes well before the ceiling, so regular use never hits it", () => {
+    assert.ok(SESSION_REFRESH_AFTER_DAYS < SESSION_MAX_AGE_DAYS);
+  });
+
+  it("produces a token that verifies and carries a later issue time", () => {
+    const hash = hashPassword(PASSWORD);
+    const old = sessionToken(userId, hash, secret, daysAgo(SESSION_REFRESH_AFTER_DAYS + 1));
+    const oldParsed = parseSessionToken(old);
+    assert.ok(oldParsed && sessionNeedsRefresh(oldParsed.issuedAt, now));
+
+    const reissued = parseSessionToken(sessionToken(userId, hash, secret, now));
+    assert.ok(reissued);
+    assert.ok(reissued.issuedAt > oldParsed.issuedAt);
+    assert.ok(safeEqual(reissued.mac, sessionMac(userId, reissued.issuedAt, hash, secret)));
+    assert.ok(!sessionExpired(reissued.issuedAt, now));
   });
 });
 

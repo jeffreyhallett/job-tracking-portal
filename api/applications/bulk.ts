@@ -17,7 +17,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const body = parseBody(req, bulkRequestSchema);
   const { db, close } = openDb();
   try {
-    const user = await requireUser(req, db);
+    const user = await requireUser(req, res, db);
     res.status(200).json(await applyBulk(db, user.id, body, resolveUserStages(user.prefs)));
   } finally {
     await close();

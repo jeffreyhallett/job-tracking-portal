@@ -12,7 +12,7 @@ import { resolveUserStages } from "../../shared/prefs.js";
 export default route(async (req: VercelRequest, res: VercelResponse) => {
   const { db, close } = openDb();
   try {
-    const user = await requireUser(req, db);
+    const user = await requireUser(req, res, db);
     const ownerId = user.id;
     const stages = resolveUserStages(user.prefs);
     if (req.method === "GET") {

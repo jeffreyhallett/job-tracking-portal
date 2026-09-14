@@ -25,7 +25,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const event = { date: body.date ?? todayISO(), label: body.label };
   const { db, close } = openDb();
   try {
-    const { id: ownerId } = await requireUser(req, db);
+    const { id: ownerId } = await requireUser(req, res, db);
     const [row] = await db
       .update(applications)
       .set({

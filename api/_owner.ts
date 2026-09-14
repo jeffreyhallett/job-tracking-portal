@@ -1,8 +1,9 @@
-import type { VercelRequest } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { eq } from "drizzle-orm";
 import { users, type UserRow } from "../db/schema.js";
-import { hashAgentToken, looksLikeAgentToken, parseSessionToken, safeEqual, sessionExpired, sessionMac, sessionToken } from "../shared/crypto.js";
+import { hashAgentToken, looksLikeAgentToken, parseSessionToken, safeEqual, sessionExpired, sessionMac, sessionNeedsRefresh, sessionToken } from "../shared/crypto.js";
 import type { UserPrefs } from "../shared/prefs.js";
+import { SESSION_TOKEN_HEADER } from "../shared/user.js";
 import type { Db } from "./_db.js";
 import "./_env.js";
 import { HttpError } from "./_error.js";
@@ -22,7 +23,11 @@ export { HttpError };
  *  - A session token (`jts1.…`), issued by POST /api/auth in exchange for the
  *    user's email and password. It is a MAC over (user id, issued-at) keyed on
  *    that user's own password hash plus the optional AUTH_SECRET, so there is
- *    no session table and changing a password signs every device out.
+ *    no session table and changing a password signs every device out. The 90-day
+ *    window slides: once a token passes the refresh threshold, requireUser
+ *    reissues it on the response, so only a device left idle that long is signed
+ *    out. That is why it takes the response — putting it here means no handler
+ *    can forget to refresh.
  *
  *  - An agent token (`jta_…`), minted per user from Settings → Automations, for
  *    scheduled Claude tasks and scripts (docs/AGENT.md). Only its sha256 is
@@ -51,15 +56,33 @@ type RequireOptions = {
   allowQueryToken?: boolean;
 };
 
-export async function requireUser(req: VercelRequest, db: Db, opts: RequireOptions = {}): Promise<AuthUser> {
+export async function requireUser(req: VercelRequest, res: VercelResponse, db: Db, opts: RequireOptions = {}): Promise<AuthUser> {
   const token = bearerToken(req) || (opts.allowQueryToken ? (queryParam(req, "token") ?? "") : "");
   if (!token) throw new HttpError(401, "Unauthorized");
   rejectLegacyAgentToken(token);
 
-  const row = looksLikeAgentToken(token) ? await userByAgentToken(db, token) : await userBySessionToken(db, token);
+  // Agent tokens do not expire and are not refreshed; they are rotated by hand.
+  if (looksLikeAgentToken(token)) {
+    const row = await userByAgentToken(db, token);
+    if (!row) throw new HttpError(401, "Unauthorized");
+    await touchLastSeen(db, row);
+    return toAuthUser(row, "agent");
+  }
+
+  const parsed = parseSessionToken(token);
+  if (!parsed || sessionExpired(parsed.issuedAt)) throw new HttpError(401, "Unauthorized");
+  // A malformed uuid would make Postgres raise rather than return no rows.
+  if (!/^[0-9a-f-]{36}$/i.test(parsed.userId)) throw new HttpError(401, "Unauthorized");
+
+  const [row] = await db.select().from(users).where(eq(users.id, parsed.userId)).limit(1);
   if (!row) throw new HttpError(401, "Unauthorized");
+  if (!safeEqual(parsed.mac, sessionMac(row.id, parsed.issuedAt, row.passwordHash, authSecret()))) {
+    throw new HttpError(401, "Unauthorized");
+  }
+
   await touchLastSeen(db, row);
-  return toAuthUser(row, looksLikeAgentToken(token) ? "agent" : "session");
+  if (sessionNeedsRefresh(parsed.issuedAt)) res.setHeader(SESSION_TOKEN_HEADER, issueSessionToken(row));
+  return toAuthUser(row, "session");
 }
 
 /**
@@ -67,8 +90,8 @@ export async function requireUser(req: VercelRequest, db: Db, opts: RequireOptio
  * agent token cannot change the password that would revoke it, rotate itself,
  * or rewrite the owner's preferences.
  */
-export async function requireSessionUser(req: VercelRequest, db: Db): Promise<AuthUser> {
-  const user = await requireUser(req, db);
+export async function requireSessionUser(req: VercelRequest, res: VercelResponse, db: Db): Promise<AuthUser> {
+  const user = await requireUser(req, res, db);
   if (user.via !== "session") throw new HttpError(403, "This endpoint needs a signed-in session, not an agent token");
   return user;
 }
@@ -92,16 +115,6 @@ function bearerToken(req: VercelRequest): string {
 async function userByAgentToken(db: Db, token: string): Promise<UserRow | undefined> {
   const [row] = await db.select().from(users).where(eq(users.agentTokenHash, hashAgentToken(token))).limit(1);
   return row;
-}
-
-async function userBySessionToken(db: Db, token: string): Promise<UserRow | undefined> {
-  const parsed = parseSessionToken(token);
-  if (!parsed || sessionExpired(parsed.issuedAt)) return undefined;
-  // A malformed uuid would make Postgres raise rather than return no rows.
-  if (!/^[0-9a-f-]{36}$/i.test(parsed.userId)) return undefined;
-  const [row] = await db.select().from(users).where(eq(users.id, parsed.userId)).limit(1);
-  if (!row) return undefined;
-  return safeEqual(parsed.mac, sessionMac(row.id, parsed.issuedAt, row.passwordHash, authSecret())) ? row : undefined;
 }
 
 /**

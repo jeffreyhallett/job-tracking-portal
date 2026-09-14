@@ -3,6 +3,13 @@
 // only the first few characters, enough for the UI to say which token is live.
 import type { UserPrefs } from "./prefs.js";
 
+/**
+ * Response header carrying a reissued session token. The API sets it on any
+ * authenticated request whose token has aged past the refresh threshold, and the
+ * client stores whatever it finds there, which is what slides the 90-day window.
+ */
+export const SESSION_TOKEN_HEADER = "X-Session-Token";
+
 export type PublicUser = {
   id: string;
   email: string;

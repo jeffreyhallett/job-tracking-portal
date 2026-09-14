@@ -68,7 +68,19 @@ export function generatePassword(): string {
 // ---------------------------------------------------------------------------
 
 const SESSION_PREFIX = "jts1";
+
+/** A token stops verifying this long after the sign-in (or refresh) that issued it. */
 export const SESSION_MAX_AGE_DAYS = 90;
+
+/**
+ * Once a token is this old, the next authenticated request reissues it. That is
+ * what makes the 90 days slide: a device used at least once every 90 days never
+ * reaches the ceiling, while one left idle that long is signed out.
+ *
+ * Refreshing on a threshold rather than on every request keeps it to about one
+ * extra header and one localStorage write per week per device.
+ */
+export const SESSION_REFRESH_AFTER_DAYS = 7;
 
 export type ParsedSessionToken = { userId: string; issuedAt: number; mac: string };
 
@@ -92,6 +104,12 @@ export function sessionMac(userId: string, issuedAt: number, passwordHash: strin
 
 export function sessionExpired(issuedAt: number, now: number = nowSeconds()): boolean {
   return now - issuedAt > SESSION_MAX_AGE_DAYS * 86_400 || issuedAt > now + 300;
+}
+
+/** True when a still-valid token is old enough to be worth reissuing. */
+export function sessionNeedsRefresh(issuedAt: number, now: number = nowSeconds()): boolean {
+  if (sessionExpired(issuedAt, now)) return false;
+  return now - issuedAt > SESSION_REFRESH_AFTER_DAYS * 86_400;
 }
 
 function nowSeconds(): number {

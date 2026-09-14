@@ -149,7 +149,7 @@ export default route(async (req: VercelRequest, res: VercelResponse) => {
   const horizonDays = intParam(req, "horizonDays", 14, 90);
   const { db, close } = openDb();
   try {
-    const user = await requireUser(req, db);
+    const user = await requireUser(req, res, db);
     const apps = await loadAll(db, user.id);
     res.status(200).json(buildDigest(apps, user, resolveUserStages(user.prefs), new Date(), activityDays, horizonDays));
   } finally {
