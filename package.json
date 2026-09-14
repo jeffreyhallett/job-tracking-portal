@@ -19,7 +19,8 @@
     "user:password": "node scripts/users.ts password",
     "user:claim": "node scripts/users.ts claim",
     "user:agent-token": "node scripts/users.ts agent-token",
-    "test": "node scripts/test.ts"
+    "test": "node scripts/test.ts",
+    "users:prod": "ENV_FILE=.env.production.local node scripts/users.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

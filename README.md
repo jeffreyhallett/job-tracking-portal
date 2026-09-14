@@ -84,7 +84,7 @@ Note on `vercel dev`: it does not read `.env.local` on its own. It uses the vari
 ### 3. Migrate and seed
 
 ```sh
-npm run db:migrate                          # applies drizzle/*.sql to DATABASE_URL
+npm run db:migrate                           # applies drizzle/*.sql to DATABASE_URL
 npm run user:add -- you@example.com          # prints a temporary password
 npm run db:seed -- you@example.com           # three sample rows (idempotent)
 ```
@@ -156,9 +156,43 @@ npm run users -- remove friend@example.com               # refuses while it stil
 npm run users -- help
 ```
 
+Those hit whichever database `.env.local` points at — the **Development** Neon branch, normally. For production use `users:prod`, which reads `.env.production.local` the way `db:migrate:prod` does:
+
+```sh
+vercel env pull .env.production.local --environment=production
+npm run users:prod -- add you@example.com
+npm run users:prod -- list
+```
+
+Every one of these prints the database host it is about to write to, first line. Accounts live in the database, so the two environments have separate account lists: creating one in Development and then failing to sign in to production is the easy mistake.
+
 `user:add` prints a temporary password and marks the account `must_change_password`, so the app makes that person choose their own before it shows them anything. Send the temporary one over something private.
 
 In the app, **Settings** (the header's slider icon) holds the account: display name, change password, sign out.
+
+#### Upgrading a deployment that is already live
+
+In order, from a checkout of this branch. Both migrations are safe to run while the old build is still serving: it never reads the `users` table, and every existing `status` value satisfies the new constraint, so there is no window where the site is broken.
+
+```sh
+npm install
+vercel env pull .env.production.local --environment=production
+
+npm run db:migrate:prod                                  # 0002 users, 0003 status constraint
+npm run users:prod -- add you@example.com                 # prints a temporary password
+npm run users:prod -- claim you@example.com --from jeffrey --dry-run
+npm run users:prod -- claim you@example.com --from jeffrey
+```
+
+Then, in the Vercel project:
+
+1. Add `AUTH_SECRET` (`openssl rand -hex 32`) for all environments. Optional, but setting it later signs everyone out.
+2. Deploy this branch.
+3. Sign in with the temporary password; the app makes you replace it.
+4. Mint a new agent token under **Settings → Automations** and update the scheduled task and any calendar subscription. The old instance-wide `AGENT_TOKEN` no longer works.
+5. Delete `APP_PASSWORD`, `DEFAULT_OWNER_ID` and `AGENT_TOKEN` from the environment variables. Leave `AGENT_TOKEN` until step 4 is done — while it is still set, a request using it gets a 401 that explains what to do instead of a bare "Unauthorized".
+
+Repeat the migrate step (without `:prod`) for the Development branch when you next work locally, and create an account there too.
 
 #### Claiming the rows that predate accounts
 
@@ -170,7 +204,7 @@ npm run user:claim -- you@example.com --from jeffrey --dry-run   # count first
 npm run user:claim -- you@example.com --from jeffrey
 ```
 
-Run it once per environment (the Development and Production databases have separate account lists). Until you do, the old rows exist but no account can read them — nothing is lost, and the app shows an empty list.
+Run it once per environment (the Development and Production databases have separate account lists; add `:prod` as above for the latter). Until you do, the old rows exist but no account can read them — nothing is lost, and the app shows an empty list.
 
 ### The pipeline is per user
 
