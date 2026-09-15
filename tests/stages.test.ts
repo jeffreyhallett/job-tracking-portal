@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { defaultColumnPrefs, normalizePrefs, resolveColumns, resolveUserStages, stagesFromLegacyLanes, visibleColumns } from "../shared/prefs.js";
+import { defaultColumnPrefs, normalizePrefs, PREFS_VERSION, resolveColumns, resolveUserStages, stagesFromLegacyLanes, visibleColumns } from "../shared/prefs.js";
 import {
   DEFAULT_STAGES,
+  isTerminalPhase,
   MAX_STAGE_LABEL,
   resolveStages,
   sanitizeStages,
@@ -12,6 +13,7 @@ import {
   STAGE_COLORS,
   STAGE_PRESETS,
   suggestColor,
+  upgradeStagePhases,
   type Stage,
 } from "../shared/stages.js";
 import { classifyEventLabel, retargetEvents } from "../shared/timeline.js";
@@ -62,6 +64,18 @@ describe("a pipeline that is not the default one", () => {
   it("starts new applications in its own first stage", () => {
     assert.equal(stages.initial().id, "researching");
     assert.equal(resolveStages([{ id: "applied", label: "Applied", color: "#3b82f6", phase: "waiting" }]).initial().id, "applied", "no lead stage: the first one");
+  });
+
+  it("reads its own ending the way it was labelled", () => {
+    // `passed` is phase `closed` here, which is the pipeline saying "over" and
+    // nothing more — so it cannot be read as the company having replied.
+    assert.ok(!stages.isResponse("passed"));
+    assert.ok(!stages.impliesApplied("passed"));
+
+    const asRejection = resolveStages([...DESIGN_PIPELINE.slice(0, 5), { ...DESIGN_PIPELINE[5]!, phase: "rejected" }]);
+    assert.ok(asRejection.isResponse("passed"), "said no is a reply");
+    assert.ok(asRejection.impliesApplied("passed"));
+    assert.ok(asRejection.isClosed("passed"), "and still ends the process");
   });
 
   it("lets a stage opt out of being completable", () => {
@@ -247,6 +261,74 @@ describe("accounts set up before stages were editable", () => {
       stages.ids,
       SIMPLE_STAGES.map((s) => s.id),
     );
+  });
+});
+
+describe("pipelines saved before a rejection counted as a response", () => {
+  /** What Settings used to store: every ending on the one `closed` phase. */
+  const beforeTheSplit = (): Stage[] => [
+    { id: "applied", label: "Applied", color: "#3b82f6", phase: "waiting" },
+    { id: "rejected", label: "Rejected", color: "#ef4444", phase: "closed" },
+    { id: "ghosted", label: "Ghosted", color: "#71717a", phase: "closed" },
+    { id: "withdrawn", label: "Withdrawn", color: "#52525b", phase: "closed" },
+    { id: "passed_over", label: "Passed over", color: "#f97316", phase: "closed" },
+  ];
+
+  it("are upgraded on the way out, so a rejection starts counting", () => {
+    const stages = resolveUserStages({ stages: beforeTheSplit() });
+    assert.ok(stages.isResponse("rejected"), "the whole point of the split");
+    assert.ok(stages.impliesApplied("rejected"));
+    assert.ok(stages.impliesApplied("ghosted"));
+    assert.ok(!stages.isResponse("ghosted"), "silence is not a reply");
+  });
+
+  it("leave the endings the split does not describe alone", () => {
+    const stages = resolveUserStages({ stages: beforeTheSplit() });
+    assert.equal(stages.get("withdrawn").phase, "closed");
+    assert.equal(stages.get("passed_over").phase, "closed", "a stage of their own making is theirs to classify");
+    assert.ok(!stages.impliesApplied("withdrawn"));
+  });
+
+  it("keep everything else about the stage", () => {
+    const renamed = beforeTheSplit().map((s) => (s.id === "rejected" ? { ...s, label: "Turned down", hidden: true } : s));
+    const stages = resolveUserStages({ stages: renamed });
+    assert.equal(stages.label("rejected"), "Turned down");
+    assert.ok(stages.get("rejected").hidden);
+  });
+
+  it("are upgraded on the way in too, since the columns editor resends them untouched", () => {
+    const prefs = normalizePrefs({ stages: beforeTheSplit(), columns: [{ key: "tags" }] });
+    assert.equal(prefs.stages?.find((s) => s.id === "rejected")?.phase, "rejected");
+    assert.equal(prefs.v, PREFS_VERSION, "and stamped, so the upgrade never runs twice");
+  });
+
+  it("stop being upgraded once the pipeline editor has had its say", () => {
+    // Someone who genuinely wants their Rejected stage to mean nothing but "over"
+    // names the version, and the choice sticks on every read after it.
+    const deliberate = { stages: beforeTheSplit(), v: PREFS_VERSION };
+    assert.equal(normalizePrefs(deliberate).stages?.find((s) => s.id === "rejected")?.phase, "closed");
+    assert.equal(resolveUserStages({ stages: beforeTheSplit(), v: PREFS_VERSION }).get("rejected").phase, "closed");
+  });
+
+  it("upgrade nothing when there is nothing to upgrade", () => {
+    const current = DEFAULT_STAGES.map((s) => ({ ...s }));
+    assert.deepEqual(upgradeStagePhases(current), current);
+  });
+});
+
+describe("where a pipeline's tail begins", () => {
+  it("is every phase that ends the process, not just `closed`", () => {
+    for (const phase of ["rejected", "ghosted", "closed"] as const) assert.ok(isTerminalPhase(phase), phase);
+    for (const phase of ["lead", "waiting", "active", "offer"] as const) assert.ok(!isTerminalPhase(phase), phase);
+  });
+
+  it("refuses a pipeline whose every visible stage is one of them", () => {
+    const overBeforeItStarts: Stage[] = [
+      { id: "rejected", label: "Rejected", color: "#ef4444", phase: "rejected" },
+      { id: "ghosted", label: "Ghosted", color: "#71717a", phase: "ghosted" },
+    ];
+    assert.ok(stagesProblem(overBeforeItStarts));
+    assert.equal(sanitizeStages(overBeforeItStarts), null);
   });
 });
 

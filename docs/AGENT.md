@@ -81,7 +81,14 @@ Query: `activityDays` (default 7, max 90), `horizonDays` (default 14, max 90).
   | `waiting` | Applied, nothing back | Counts as applied; goes stale when quiet |
   | `active` | In progress with them: interview, test, review | Counts as a response; goes stale when quiet; can be marked complete |
   | `offer` | They made an offer | Counts as a response; never stale |
-  | `closed` | Over, however it ended | Stops counting as active |
+  | `rejected` | Over: they turned this one down | Counts as applied and as a response — a no is still a reply; never stale |
+  | `ghosted` | Over: it went out and nobody ever replied | Counts as applied but never as a response; never stale |
+  | `closed` | Over some other way: withdrawn, role pulled | Counts as neither applied nor a response |
+
+  The last three are all terminal — they stop a row counting as active. They are
+  separate phases because they disagree about what happened: only `rejected` is
+  the company answering, and only `rejected` and `ghosted` prove the application
+  went out at all.
 
 - **`hidden`** — they took this stage off their board. Do not suggest moving a row into one.
 
@@ -163,7 +170,7 @@ Auth: send header "Authorization: Bearer [YOUR AGENT TOKEN]" on every request.
 1. GET /api/agent/digest
 2. Read user.stages from that response: my pipeline is mine, not a standard one.
    Send a stage's id in any PATCH, call it by its label when you write to me, and use
-   its phase to understand it ("active" = in progress with them, "closed" = over).
+   its phase to understand it ("active" = in progress with them, "rejected"/"ghosted"/"closed" = over).
    Never suggest moving a row into a stage marked hidden.
 3. Write me a short update, plain text, in this order and only if non-empty:
    - Needs attention: one line each, "Company — Role: reason". Suggest the single most useful next step for each. If the item has contacts, name the person to write to and how long since lastContact.

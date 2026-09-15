@@ -23,6 +23,11 @@ type Progress = { applied?: string; response?: string };
  * mis-click, or the process restarted), and dropping to a "lead" stage clears
  * the apply too. Without this, an app that briefly touched a later stage counted
  * as a response forever.
+ *
+ * A stage that ends the process is not a move backwards, so it leaves both dates
+ * alone — except that a rejection is itself a response, and lands here as one
+ * when nothing earlier did. Being ghosted or withdrawing never does: those are
+ * the absence of an answer.
  */
 function progress(app: Application, stages: StageSet): Progress {
   let applied: string | undefined;

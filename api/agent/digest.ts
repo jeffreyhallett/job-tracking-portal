@@ -16,7 +16,8 @@ type Ref = { id: string; company: string; role: string; status: Status; url?: st
 /**
  * One stage of this user's pipeline. `phase` is what the stage *means*, so an
  * automation can reason about an unfamiliar pipeline: "active" is in progress
- * with the company, "closed" is over. See docs/AGENT.md.
+ * with the company, and "rejected" / "ghosted" / "closed" are the three ways it
+ * can be over. See docs/AGENT.md.
  */
 export type DigestStage = { id: Status; label: string; phase: StagePhase; hidden?: boolean };
 

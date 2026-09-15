@@ -223,11 +223,17 @@ A stage's `phase` carries everything the app needs to reason about it. This is t
 | `waiting` | Waiting to hear back | yes (sets the applied date) | no | yes | yes | optional |
 | `active` | In progress with them | yes | yes | yes | yes | yes (default) |
 | `offer` | Offer | yes | yes | no | yes | optional |
-| `closed` | Closed | no | no | no | no | no |
+| `rejected` | Rejected | yes | yes | no | no | no |
+| `ghosted` | Never heard back | yes | no | no | no | no |
+| `closed` | Closed some other way | no | no | no | no | no |
 
 `lead` also drives the "deadline within a week" warning, and moving back to a `lead` or `waiting` stage walks progress back the way it always did. The phase picker in Settings lists these consequences next to each choice, so it is not a guess.
 
-The defaults map onto the six hardcoded stage lists this replaced, exactly: `interested` is `lead`, `applied` is `waiting`, `oa`/`phone_screen`/`onsite` are `active`, `offer` is `offer`, and the three terminal stages are `closed`. `tests/pipeline.test.ts` pins that, so nobody's response rate or stale flags moved.
+**Three phases end a process, not one.** How it ended decides what the numbers may read into it, and the endings disagree on two counts. A rejection is the company answering you, so it counts as a response — being turned down is not the same as never hearing back, and lumping the two together made a pile of rejections look exactly like silence. And a rejection or a ghosting can only be reached by applying, so both count as applied even on a row with no timeline at all, which is how an imported `Company, Role, Rejected` lands. Withdrawing proves neither: you can walk away from something you never sent, so `closed` stays the ending that asserts nothing. `isTerminalPhase` is what the editor and the validators ask when they need to know where a pipeline's tail begins.
+
+The defaults map onto the six hardcoded stage lists this replaced, with one deliberate exception: `interested` is `lead`, `applied` is `waiting`, `oa`/`phone_screen`/`onsite` are `active`, `offer` is `offer`, `withdrawn` is `closed` — and `rejected` and `ghosted`, which used to be `closed` along with it, now carry the phases of the same name. `tests/pipeline.test.ts` pins all of it, including what the split does to the response rate.
+
+Pipelines saved before the split stored both on `closed`, so `resolveUserStages` upgrades them on read and `normalizePrefs` on write, keyed on those two shipped ids and only where the stored phase is still `closed`. A custom terminal stage of the user's own making is left alone. `UserPrefs.v` records that a blob has been through it, so the upgrade runs once and a later, deliberate move back to `closed` is not undone — the pipeline editor names the version when it saves, the columns editor does not, which is what keeps a wholesale resend of untouched prefs from freezing the old meaning in place.
 
 #### Why editing it is safe
 
@@ -250,7 +256,7 @@ Because everybody's stages differ, `GET /api/agent/digest` returns `user.stages`
 
 ## How the pieces behave
 
-**Stage changes log themselves.** Moving a card, changing the stage in the table, or picking one in the drawer appends `{ date, label, status, kind: "status" }` to the row's `events`. Moving into a `waiting` stage also fills `appliedDate` if it is blank. The stats strip (active, applied, response rate, median days to first response) is derived from those events, not from counters.
+**Stage changes log themselves.** Moving a card, changing the stage in the table, or picking one in the drawer appends `{ date, label, status, kind: "status" }` to the row's `events`. Moving into a `waiting` stage also fills `appliedDate` if it is blank. The stats strip (active, applied, response rate, median days to first response) is derived from those events, not from counters. A move into a terminal stage leaves both derived dates alone, except that a rejection records itself as the first response when nothing earlier did — so applied → rejected is a response at the date of the rejection, while applied → onsite → rejected keeps the onsite as the day they first came back.
 
 **Moving backwards undoes progress.** Dropping a row back to a `waiting` stage clears the response recorded above it, so a mis-click (or a process that restarted) no longer counts as a response for good; dropping it back to a `lead` stage also clears `appliedDate`, so it stops counting as applied. The timeline keeps every entry either way — only what the stats derive from it changes. Undo on the toast puts the row back exactly as it was.
 
