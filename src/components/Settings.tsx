@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { passwordProblem } from "../../shared/password";
-import { defaultColumnPrefs, type ColumnPref } from "../../shared/prefs";
+import { defaultColumnPrefs, PREFS_VERSION, type ColumnPref } from "../../shared/prefs";
 import {
+  isTerminalPhase,
   MAX_STAGE_LABEL,
   MAX_STAGES,
   PHASE_INFO,
@@ -119,8 +120,8 @@ function PipelineTab({ apps, onReload }: { apps: Application[]; onReload: () => 
     const id = stageIdFor(label, current.map((s) => s.id));
     const stage: Stage = { id, label: label.trim().slice(0, MAX_STAGE_LABEL), color: suggestColor(phase, current.map((s) => s.color)), phase };
     // Slot it before the terminal stages, which belong at the end of a pipeline.
-    const firstClosed = phase === "closed" ? -1 : current.findIndex((s) => s.phase === "closed");
-    edit(firstClosed === -1 ? [...current, stage] : [...current.slice(0, firstClosed), stage, ...current.slice(firstClosed)]);
+    const firstTerminal = isTerminalPhase(phase) ? -1 : current.findIndex((s) => isTerminalPhase(s.phase));
+    edit(firstTerminal === -1 ? [...current, stage] : [...current.slice(0, firstTerminal), stage, ...current.slice(firstTerminal)]);
   };
 
   const removeStage = (id: string) => {
@@ -144,7 +145,9 @@ function PipelineTab({ apps, onReload }: { apps: Application[]; onReload: () => 
       return to ? [{ from: s.id, to }] : [];
     });
     try {
-      await savePrefs({ ...user.prefs, stages: current }, reassign);
+      // Naming the version says these phases came out of this editor, so the
+      // server takes them as they are rather than upgrading an older pipeline.
+      await savePrefs({ ...user.prefs, stages: current, v: PREFS_VERSION }, reassign);
       reset();
       // The server moved rows between stages; the local copies are stale.
       if (reassign.length) onReload();
@@ -256,7 +259,7 @@ function PipelineTab({ apps, onReload }: { apps: Application[]; onReload: () => 
                       </option>
                     ))}
                   </select>
-                  {stage.phase !== "closed" && stage.phase !== "lead" && (
+                  {!isTerminalPhase(stage.phase) && stage.phase !== "lead" && (
                     <label className="flex items-center gap-1.5 text-[12px] text-fg-2 cursor-pointer">
                       <input type="checkbox" checked={stage.completable ?? stage.phase === "active"} onChange={(e) => patch(stage.id, { completable: e.target.checked })} />
                       Can be marked complete
@@ -700,7 +703,8 @@ Auth: send header "Authorization: Bearer ${token}" on every request.
 2. My pipeline is mine, not a standard one — right now: ${stageLabels.join(" -> ")}.
    Read user.stages from the response for the current list: each entry has an id
    (what you send in a PATCH), a label (what you call it when writing to me), and a
-   phase saying what it means ("active" = in progress with them, "closed" = over).
+   phase saying what it means ("active" = in progress with them, "rejected" /
+   "ghosted" / "closed" = over, and only "rejected" means they actually replied).
    Never suggest moving a row into a stage marked hidden.
 3. Write me a short update, plain text, in this order and only if non-empty:
    - Needs attention: one line each, "Company - Role: reason". Suggest the single most useful next step. If the item has contacts, name who to write to and how long since lastContact.

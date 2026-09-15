@@ -112,6 +112,11 @@ function mergePrefs(existing: UserPrefs, normalized: UserPrefs, submitted: { sta
   const columns = submitted?.columns ? normalized.columns : existing.columns;
   if (stages) merged.stages = stages;
   if (columns) merged.columns = columns;
+  // The version describes the pipeline, so it travels with whichever one is kept.
+  // A columns-only PATCH leaves an un-upgraded pipeline un-stamped, which is the
+  // point: it keeps being upgraded on read until the editor saves it for real.
+  const v = submitted?.stages ? normalized.v : existing.v;
+  if (v !== undefined) merged.v = v;
   // Legacy lane prefs survive until a real pipeline replaces them.
   if (!stages && existing.lanes) merged.lanes = existing.lanes;
   return merged;

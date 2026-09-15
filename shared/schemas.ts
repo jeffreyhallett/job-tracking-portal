@@ -121,6 +121,12 @@ export const stageSchema = z.object({
 
 export const userPrefsSchema = z.object({
   stages: z.array(stageSchema).max(MAX_STAGES + 8).optional(),
+  /**
+   * What the submitted pipeline's phases mean (see PREFS_VERSION). A client that
+   * leaves it out is saying "this came from wherever I read it", which is what
+   * lets the server upgrade a pipeline the columns editor resent unchanged.
+   */
+  v: z.number().int().min(1).max(1_000).optional(),
   columns: z
     .array(
       z.object({

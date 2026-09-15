@@ -1,7 +1,7 @@
 // Per-user UI preferences: the pipeline (see stages.ts) and the table's columns.
 // Stored as one jsonb blob on the user row so they follow the person across
 // devices, and read by the client, the API, and the agent digest.
-import { DEFAULT_STAGES, resolveStages, sanitizeStages, type Stage, type StageSet } from "./stages.js";
+import { DEFAULT_STAGES, resolveStages, sanitizeStages, upgradeStagePhases, type Stage, type StageSet } from "./stages.js";
 
 // ---------------------------------------------------------------------------
 // Table columns
@@ -77,16 +77,29 @@ export function defaultColumnPrefs(): ColumnPref[] {
  */
 export type LegacyLanePref = { status: string; label?: string; hidden?: boolean };
 
+/**
+ * Bumped when stored prefs mean something different from what they used to, so
+ * the upgrade runs on a blob written before the change and never again after.
+ *
+ * 2 — `rejected` and `ghosted` became phases of their own; both had been stored
+ *     as `closed`, which kept a rejection from counting as a response.
+ */
+export const PREFS_VERSION = 2;
+
 export type UserPrefs = {
   stages?: Stage[];
   columns?: ColumnPref[];
+  /** What the stored shape means. Absent on anything written before PREFS_VERSION 2. */
+  v?: number;
   /** @deprecated superseded by `stages`; still read so nothing is lost. */
   lanes?: LegacyLanePref[];
 };
 
 /** The user's pipeline, resolved and ready to ask questions of. */
 export function resolveUserStages(prefs: UserPrefs | undefined): StageSet {
-  if (prefs?.stages) return resolveStages(prefs.stages);
+  // Legacy lanes are rebuilt from DEFAULT_STAGES every read, so they are already
+  // current; only a stored pipeline can be carrying phases from before the split.
+  if (prefs?.stages) return resolveStages((prefs.v ?? 1) >= PREFS_VERSION ? prefs.stages : upgradeStagePhases(prefs.stages));
   if (prefs?.lanes) return resolveStages(stagesFromLegacyLanes(prefs.lanes));
   return resolveStages(undefined);
 }
@@ -114,6 +127,7 @@ export function stagesFromLegacyLanes(lanes: readonly LegacyLanePref[]): Stage[]
 export type UserPrefsInput = {
   stages?: unknown[];
   columns?: { key: string; hidden?: boolean }[];
+  v?: number;
 };
 
 /**
@@ -127,7 +141,15 @@ export function normalizePrefs(input: UserPrefsInput | undefined): UserPrefs {
 
   if (input?.stages) {
     const stages = sanitizeStages(input.stages);
-    if (stages) prefs.stages = stages;
+    if (stages) {
+      // A submission that does not name the current version may be carrying a
+      // pipeline read before the phase split — the columns editor resends the
+      // whole blob untouched — so the upgrade has to run on the way in as well
+      // as on the way out. The pipeline editor names it, which is what lets a
+      // deliberate move back to `closed` survive being saved.
+      prefs.stages = (input.v ?? 1) >= PREFS_VERSION ? stages : upgradeStagePhases(stages);
+      prefs.v = PREFS_VERSION;
+    }
   }
 
   if (input?.columns) {

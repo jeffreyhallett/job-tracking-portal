@@ -6,6 +6,11 @@
 // response rate, median-days figure, or stale flags. The expected values below
 // were written against the pre-custom-stages behaviour; if one of them has to
 // change, that is a real behaviour change and needs to be a deliberate one.
+//
+// One has changed since, deliberately: a rejection used to be phase `closed`
+// like every other ending, which meant a company turning you down did not count
+// as having responded. `rejected` and `ghosted` are phases of their own now, and
+// the assertions below say what each of the three endings does to the numbers.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { attentionReasons, describeReason, isSnoozed, needsAttention, rawAttentionReasons } from "../shared/attention.js";
@@ -150,10 +155,51 @@ describe("stats: the strip numbers", () => {
   });
 
   it("counts a row as applied from its stage even with an empty timeline", () => {
-    for (const status of ["applied", "oa", "phone_screen", "onsite", "offer"]) {
+    // Rejected and ghosted included: you cannot reach either without applying,
+    // and an imported row has no timeline to read an applied date out of.
+    for (const status of ["applied", "oa", "phone_screen", "onsite", "offer", "rejected", "ghosted"]) {
       assert.equal(computeStats([app({ status })], stages).applied, 1, status);
     }
-    assert.equal(computeStats([app({ status: "interested" })], stages).applied, 0);
+    // Withdrawing says nothing either way, so it is not assumed to have gone out.
+    for (const status of ["interested", "withdrawn"]) {
+      assert.equal(computeStats([app({ status })], stages).applied, 0, status);
+    }
+  });
+
+  it("counts a rejection as a response, and silence as the absence of one", () => {
+    const rejected = app({ status: "rejected", events: [moved("applied", 20), moved("rejected", 12)] });
+    const ghosted = app({ status: "ghosted", events: [moved("applied", 20), moved("ghosted", 1)] });
+
+    assert.equal(firstResponseOn(rejected, stages), day(12), "the day they wrote back");
+    assert.equal(firstResponseOn(ghosted, stages), undefined, "nobody ever wrote back");
+
+    const stats = computeStats([rejected, ghosted], stages);
+    assert.equal(stats.applied, 2);
+    assert.equal(stats.responded, 1);
+    assert.equal(stats.responseRate, 0.5);
+    assert.equal(stats.medianDaysToResponse, 8, "applied to rejected, not applied to closed");
+  });
+
+  it("keeps the earlier response when a rejection follows an interview", () => {
+    const row = app({ status: "rejected", events: [moved("applied", 30), moved("onsite", 20), moved("rejected", 5)] });
+    assert.equal(firstResponseOn(row, stages), day(20), "the onsite was the first time they came back");
+    assert.equal(computeStats([row], stages).responded, 1);
+  });
+
+  it("counts an imported ending with no timeline at all", () => {
+    // What a paste of "Company, Role, Rejected" lands as: one terminal event and
+    // no applied date. The rate has to be able to see both halves of it.
+    const stats = computeStats([app({ status: "rejected" }), app({ status: "ghosted" }), app({ status: "ghosted" })], stages);
+    assert.equal(stats.applied, 3);
+    assert.equal(stats.responded, 1);
+    assert.equal(stats.medianDaysToResponse, null, "no dates to measure between");
+  });
+
+  it("still lets a demotion undo a rejection", () => {
+    const row = app({ status: "applied", events: [moved("applied", 20), moved("rejected", 15), moved("applied", 12)] });
+    const stats = computeStats([row], stages);
+    assert.equal(stats.applied, 1);
+    assert.equal(stats.responded, 0, "the rejection was a mis-click");
   });
 
   it("computes the response rate over applied rows only", () => {
@@ -272,6 +318,19 @@ describe("the default stage set", () => {
     assert.equal(phase("applied"), "waiting");
     for (const id of ["oa", "phone_screen", "onsite"]) assert.equal(phase(id), "active", id);
     assert.equal(phase("offer"), "offer");
-    for (const id of ["rejected", "ghosted", "withdrawn"]) assert.equal(phase(id), "closed", id);
+    assert.equal(phase("withdrawn"), "closed");
+  });
+
+  it("gives the two endings the company owns a phase each", () => {
+    // Deliberately not `closed`: what ended a process decides what the stats may
+    // read into it, and these two disagree about whether anyone ever replied.
+    assert.equal(stages.get("rejected").phase, "rejected");
+    assert.equal(stages.get("ghosted").phase, "ghosted");
+
+    for (const id of ["rejected", "ghosted", "withdrawn"]) {
+      assert.ok(stages.isClosed(id), `${id} still ends the process`);
+      assert.ok(!stages.isInFlight(id), `${id} is never waiting on them`);
+      assert.ok(!stages.isCompletable(id), `${id} has nothing to sit`);
+    }
   });
 });

@@ -12,6 +12,11 @@
 // timeline's completion marker, sorting, the agent digest) asks a StageSet
 // instead of consulting a constant.
 //
+// A terminal stage is not one thing, either. "They said no" and "nobody ever
+// wrote back" both end a process, but only one of them is the company
+// responding to you, and only one of them is silence — so they are separate
+// phases rather than one `closed` bucket.
+//
 // Two things stay fixed on purpose:
 //   - A stage's `id` never changes once created. It is what lands in
 //     `applications.status` and in timeline events, so renaming a stage cannot
@@ -20,10 +25,10 @@
 //     and existing timelines keep resolving with no migration.
 
 // ---------------------------------------------------------------------------
-// Phases: the five kinds of meaning the app needs from a stage
+// Phases: the kinds of meaning the app needs from a stage
 // ---------------------------------------------------------------------------
 
-export const STAGE_PHASES = ["lead", "waiting", "active", "offer", "closed"] as const;
+export const STAGE_PHASES = ["lead", "waiting", "active", "offer", "rejected", "ghosted", "closed"] as const;
 export type StagePhase = (typeof STAGE_PHASES)[number];
 
 export type PhaseInfo = {
@@ -61,11 +66,23 @@ export const PHASE_INFO: Record<StagePhase, PhaseInfo> = {
     blurb: "They have made you an offer.",
     effects: ["Counts as a response", "Never flagged as stale — the ball is with you"],
   },
+  rejected: {
+    phase: "rejected",
+    title: "Rejected",
+    blurb: "They came back to you, and the answer was no.",
+    effects: ["Counts as applied, for the response rate", "Counts as a response — a no is still a reply", "Stops counting as active", "Never flagged as stale"],
+  },
+  ghosted: {
+    phase: "ghosted",
+    title: "Never heard back",
+    blurb: "It went out, the trail went cold, and you have written it off.",
+    effects: ["Counts as applied, for the response rate", "Does not count as a response", "Stops counting as active", "Never flagged as stale"],
+  },
   closed: {
     phase: "closed",
-    title: "Closed",
-    blurb: "Over, however it ended: rejected, withdrawn, never heard back.",
-    effects: ["Stops counting as active", "Never flagged as stale"],
+    title: "Closed some other way",
+    blurb: "Over without them turning you down: you withdrew, or the role went away.",
+    effects: ["Counts as neither applied nor a response", "Stops counting as active", "Never flagged as stale"],
   },
 };
 
@@ -121,8 +138,8 @@ export const DEFAULT_STAGES: readonly Stage[] = [
   { id: "phone_screen", label: "Phone screen", color: "#a855f7", phase: "active" },
   { id: "onsite", label: "Onsite", color: "#06b6d4", phase: "active" },
   { id: "offer", label: "Offer", color: "#22c55e", phase: "offer" },
-  { id: "rejected", label: "Rejected", color: "#ef4444", phase: "closed" },
-  { id: "ghosted", label: "Ghosted", color: "#71717a", phase: "closed" },
+  { id: "rejected", label: "Rejected", color: "#ef4444", phase: "rejected" },
+  { id: "ghosted", label: "Ghosted", color: "#71717a", phase: "ghosted" },
   { id: "withdrawn", label: "Withdrawn", color: "#52525b", phase: "closed" },
 ];
 
@@ -151,7 +168,7 @@ export const SIMPLE_STAGES: readonly Stage[] = [
   { id: "applied", label: "Applied", color: "#3b82f6", phase: "waiting" },
   { id: "interviewing", label: "Interviewing", color: "#a855f7", phase: "active" },
   { id: "offer", label: "Offer", color: "#22c55e", phase: "offer" },
-  { id: "rejected", label: "Rejected", color: "#ef4444", phase: "closed" },
+  { id: "rejected", label: "Rejected", color: "#ef4444", phase: "rejected" },
 ];
 
 export const STAGE_PRESETS: { key: string; name: string; description: string; stages: readonly Stage[] }[] = [
@@ -160,18 +177,32 @@ export const STAGE_PRESETS: { key: string; name: string; description: string; st
 ];
 
 // ---------------------------------------------------------------------------
-// Phase semantics. These five functions are the whole translation from the old
-// hardcoded stage lists, and nothing outside this file should branch on a phase.
+// Phase semantics. These functions are the whole translation from the old
+// hardcoded stage lists, and nothing outside this file should branch on a phase
+// — `isTerminalPhase` is exported so the editor and the validators do not have
+// to spell out which phases end a process.
 // ---------------------------------------------------------------------------
 
-/** Terminal. Was CLOSED_STAGES. */
-const phaseIsClosed = (p: StagePhase) => p === "closed";
+/**
+ * Terminal: the process is over, whichever way it went. Was CLOSED_STAGES.
+ *
+ * Three phases end a process, because how it ended changes what the stats may
+ * conclude from it. A rejection is a reply; being ghosted is not; withdrawing
+ * says nothing about whether the application ever went out.
+ */
+export const isTerminalPhase = (p: StagePhase): boolean => p === "rejected" || p === "ghosted" || p === "closed";
 /** The company owes you a move, so silence goes stale. Was IN_FLIGHT_STAGES. */
 const phaseIsInFlight = (p: StagePhase) => p === "waiting" || p === "active";
-/** They came back to you. Was RESPONSE_STAGES. */
-const phaseIsResponse = (p: StagePhase) => p === "active" || p === "offer";
-/** Being here means the application went out. Was APPLIED_OR_LATER minus the closed stages. */
-const phaseImpliesApplied = (p: StagePhase) => p === "waiting" || p === "active" || p === "offer";
+/** They came back to you — a rejection included, since a no is still an answer. Was RESPONSE_STAGES. */
+const phaseIsResponse = (p: StagePhase) => p === "active" || p === "offer" || p === "rejected";
+/**
+ * Being here means the application went out. Was APPLIED_OR_LATER minus the closed stages.
+ *
+ * It covers the two terminal phases that can only be reached by applying, so a
+ * row imported straight into one still lands in the response rate's denominator
+ * — with no timeline to read a date out of, this is the only thing that knows.
+ */
+const phaseImpliesApplied = (p: StagePhase) => p === "waiting" || p === "active" || p === "offer" || p === "rejected" || p === "ghosted";
 /** Moving back here walks progress back. Was RESET_STAGES. */
 const phaseResets = (p: StagePhase) => p === "lead" || p === "waiting";
 /** Default for "you can sit this and mark it done". Was COMPLETABLE_STAGES. */
@@ -255,7 +286,7 @@ function stageSet(all: Stage[]): StageSet {
     order: (id) => orderOf.get(id) ?? all.length,
     labels: () => Object.fromEntries(all.map((s) => [s.id, s.label])),
 
-    isClosed: (id) => phaseIsClosed(phaseOf(id)),
+    isClosed: (id) => isTerminalPhase(phaseOf(id)),
     isInFlight: (id) => phaseIsInFlight(phaseOf(id)),
     isResponse: (id) => phaseIsResponse(phaseOf(id)),
     impliesApplied: (id) => phaseImpliesApplied(phaseOf(id)),
@@ -269,6 +300,24 @@ function stageSet(all: Stage[]): StageSet {
 
     initial: () => all.find((s) => !s.hidden && s.phase === "lead") ?? all.find((s) => !s.hidden) ?? get(DEFAULT_STAGES[0]?.id ?? "interested"),
   };
+}
+
+/**
+ * A stored pipeline written before `rejected` and `ghosted` became phases of
+ * their own, brought up to date.
+ *
+ * Both shipped as `closed`, so a pipeline saved back then still says a rejection
+ * is not a response — the very thing the split exists to fix. Keyed on the two
+ * shipped ids, and only for a stage still sitting on the old `closed`: a custom
+ * terminal stage is left alone, and prefs written since the split carry a
+ * version that skips this entirely, so a deliberate choice is never overwritten.
+ */
+export function upgradeStagePhases(stages: readonly Stage[]): Stage[] {
+  const split: Record<string, StagePhase> = { rejected: "rejected", ghosted: "ghosted" };
+  return stages.map((stage) => {
+    const phase = split[stage.id];
+    return phase !== undefined && stage.phase === "closed" ? { ...stage, phase } : { ...stage };
+  });
 }
 
 /**
@@ -304,7 +353,7 @@ export function sanitizeStages(input: readonly unknown[] | undefined): Stage[] |
   if (stages.length === 0) return null;
   // A pipeline of nothing but terminal stages leaves nowhere to put a live
   // application, which would make the app unusable. Fall back rather than save it.
-  if (!stages.some((s) => !s.hidden && s.phase !== "closed")) return null;
+  if (!stages.some((s) => !s.hidden && !isTerminalPhase(s.phase))) return null;
   return stages;
 }
 
@@ -321,7 +370,7 @@ export function stagesProblem(stages: readonly Stage[]): string | null {
     if (stage.label.length > MAX_STAGE_LABEL) return `"${stage.label.slice(0, 12)}…" is too long`;
     if (!isStagePhase(stage.phase)) return `"${stage.label}" has no valid phase`;
   }
-  if (!stages.some((s) => !s.hidden && s.phase !== "closed")) return "Keep at least one visible stage that is not Closed";
+  if (!stages.some((s) => !s.hidden && !isTerminalPhase(s.phase))) return "Keep at least one visible stage the process can still be live in";
   return null;
 }
 
@@ -369,8 +418,12 @@ function defaultColorFor(id: string, phase: StagePhase): string {
       return "#a855f7";
     case "offer":
       return "#22c55e";
-    case "closed":
+    case "rejected":
       return "#ef4444";
+    case "ghosted":
+      return "#71717a";
+    case "closed":
+      return "#52525b";
   }
 }
 
